@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Can I Swim Without a Wetsuit? — Local Sea Temp</title>
+  <meta name="description" content="Live sea surface temperature, nearest beach map, wetsuit thickness guide, and factual temperature comparisons." />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet 1.9.4 CSS & JS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+      min-height: 100dvh;
+    }
+
+    /* Subtle dark/glassmorphic temperature-reactive background accents */
+    .theme-arctic {
+      background: radial-gradient(circle at top right, #1e3a8a 0%, #0f172a 55%, #020617 100%);
+    }
+    .theme-cold {
+      background: radial-gradient(circle at top right, #1d4ed8 0%, #0f172a 58%, #020617 100%);
+    }
+    .theme-cool {
+      background: radial-gradient(circle at top right, #0e7490 0%, #0f172a 58%, #020617 100%);
+    }
+    .theme-mild {
+      background: radial-gradient(circle at top right, #0f766e 0%, #0f172a 58%, #020617 100%);
+    }
+    .theme-warm {
+      background: radial-gradient(circle at top right, #0284c7 0%, #0f172a 58%, #020617 100%);
+    }
+    .theme-tropical {
+      background: radial-gradient(circle at top right, #c2410c 0%, #0f172a 58%, #020617 100%);
+    }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .glass-pill {
+      background: rgba(255, 255, 255, 0.09);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    /* Hide scrollbar for horizontal forecast strip */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Custom Leaflet pulsing blue user marker */
+    .user-pulse-marker {
+      position: relative;
+      width: 18px;
+      height: 18px;
+    }
+    .user-pulse-dot {
+      position: absolute;
+      inset: 3px;
+      background: #3b82f6;
+      border: 2.5px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.9);
+      z-index: 2;
+    }
+    .user-pulse-ring {
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      background: rgba(59, 130, 246, 0.4);
+      animation: userPulse 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+      z-index: 1;
+    }
+    @keyframes userPulse {
+      0% { transform: scale(0.5); opacity: 0.9; }
+      100% { transform: scale(2.1); opacity: 0; }
+    }
+
+    /* Custom Leaflet beach pin marker */
+    .beach-pin-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+    }
+
+    /* Leaflet tooltip & control refinements */
+    .leaflet-tooltip.custom-map-label {
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    }
+    .leaflet-tooltip-top.custom-map-label::before {
+      border-top-color: rgba(15, 23, 42, 0.92);
+    }
+    .leaflet-control-attribution {
+      font-size: 9px !important;
+      background: rgba(15, 23, 42, 0.72) !important;
+      color: rgba(255, 255, 255, 0.65) !important;
+    }
+    .leaflet-control-attribution a {
+      color: rgba(255, 255, 255, 0.8) !important;
+    }
+  </style>
+</head>
+<body class="theme-cool text-slate-100 antialiased selection:bg-sky-400/30">
+
+  <!-- Mobile-First Main Container -->
+  <div class="w-full max-w-[480px] mx-auto px-4 pt-5 pb-10 flex flex-col gap-3.5">
+
+    <!-- Top Header -->
+    <header class="flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white leading-tight truncate">
+          Can I Swim Without a Wetsuit?
+        </h1>
+        <p id="locationSubtitle" class="text-xs text-slate-400 font-medium mt-0.5 truncate">
+          Locating your nearest coast...
+        </p>
+      </div>
+
+      <!-- °C / °F Unit Toggle -->
+      <button
+        id="unitToggleBtn"
+        type="button"
+        aria-label="Toggle temperature unit between Celsius and Fahrenheit"
+        class="glass-pill shrink-0 rounded-full p-1 flex items-center text-xs font-bold transition active:scale-95"
+      >
+        <span id="unitC" class="px-2.5 py-1 rounded-full bg-white text-slate-950 transition-all">°C</span>
+        <span id="unitF" class="px-2.5 py-1 rounded-full text-slate-300 transition-all">°F</span>
+      </button>
+    </header>
+
+    <!-- Search & Relocate Controls -->
+    <section class="flex gap-2 relative z-[500]">
+      <div class="relative flex-1">
+        <input
+          id="searchInput"
+          type="text"
+          autocomplete="off"
+          placeholder="Search any city or coastal spot..."
+          class="w-full rounded-2xl bg-white/[0.08] border border-white/15 px-4 py-3 pl-10 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:bg-white/[0.12] transition"
+        />
+        <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="M21 21l-4.35-4.35"></path>
+        </svg>
+
+        <!-- Geocoding Search Dropdown -->
+        <div
+          id="searchDropdown"
+          class="hidden absolute left-0 right-0 top-[calc(100%+6px)] rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl overflow-hidden z-[600]"
+        ></div>
+      </div>
+
+      <!-- Relocate Button -->
+      <button
+        id="relocateBtn"
+        type="button"
+        title="Relocate using GPS"
+        class="glass-pill rounded-2xl px-3.5 py-3 flex items-center justify-center gap-1.5 text-xs sm:text-sm font-semibold text-white hover:bg-white/15 active:scale-95 transition shrink-0"
+      >
+        <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v3m0 14v3m10-10h-3M5 12H2m15 0a5 5 0 11-10 0 5 5 0 0110 0z" />
+        </svg>
+        <span>Relocate</span>
+      </button>
+    </section>
+
+    <!-- Status / Error Banner (no alert() boxes) -->
+    <div
+      id="errorBanner"
+      class="hidden rounded-2xl bg-rose-500/20 border border-rose-400/35 px-4 py-3 text-xs sm:text-sm text-rose-100 flex items-center justify-between gap-3"
+    >
+      <span id="errorText">Unable to load marine data.</span>
+      <button id="retryBtn" type="button" class="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 font-semibold text-xs shrink-0 transition">
+        Retry
+      </button>
+    </div>
+
+    <!-- Hero Sea Temperature Card -->
+    <section class="glass-card rounded-3xl p-5 shadow-2xl relative overflow-hidden flex flex-col gap-4">
+      <!-- Loading Overlay -->
+      <div id="loadingOverlay" class="hidden absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-3 px-4 text-center">
+        <div class="w-9 h-9 rounded-full border-3 border-white/20 border-t-sky-400 animate-spin" style="border-width: 3px;"></div>
+        <p id="loadingText" class="text-xs sm:text-sm font-semibold text-slate-200">Finding nearest beach...</p>
+      </div>
+
+      <!-- Beach Header + Verdict Badge -->
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <p class="text-[11px] uppercase tracking-widest font-bold text-slate-400">Nearest Beach</p>
+          <h2 id="beachName" class="text-lg sm:text-xl font-extrabold text-white leading-snug truncate">
+            Locating...
+          </h2>
+        </div>
+        <span
+          id="verdictBadge"
+          class="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold tracking-wide uppercase bg-white/15 text-white border border-white/15"
+        >
+          LOADING
+        </span>
+      </div>
+
+      <!-- Temperature + Wave Height Row -->
+      <div class="flex items-end justify-between gap-3">
+        <div class="flex items-baseline gap-1">
+          <span id="tempValue" class="text-6xl font-black tracking-tighter leading-none text-white">--</span>
+          <span id="tempUnit" class="text-2xl font-bold text-slate-400">°C</span>
+        </div>
+
+        <div class="flex flex-col items-end gap-1.5">
+          <div class="glass-pill rounded-full px-3 py-1.5 text-xs font-semibold text-slate-100 flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2 12c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0M2 17c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0" />
+            </svg>
+            <span id="waveHeight">-- m waves</span>
+          </div>
+          <span id="updatedTime" class="text-[11px] text-slate-400 font-medium">Open-Meteo Marine</span>
+        </div>
+      </div>
+
+      <!-- Temperature-Aligned Factual Reference Box -->
+      <div class="rounded-2xl bg-slate-950/45 border border-white/10 p-4 flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2">
+          <span id="factLabel" class="text-[11px] uppercase tracking-wider font-bold text-sky-300">
+            Temperature Fact
+          </span>
+          <button
+            id="nextFactBtn"
+            type="button"
+            class="text-[11px] font-semibold text-slate-300 hover:text-white bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full transition active:scale-95 flex items-center gap-1"
+          >
+            <span>Next fact</span>
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+              <path stroke
