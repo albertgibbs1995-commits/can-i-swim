@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Can I Swim Without a Wetsuit? — Local Sea Temp</title>
+  <meta name="description" content="Live sea surface temperature, nearest beach map, wetsuit thickness guide, and 380 temperature-aligned real-world facts." />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet 1.9.4 CSS (Primary: cdnjs, Fallback: unpkg) -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+    onerror="this.onerror=null;this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';"
+  />
+
+  <!-- Leaflet 1.9.4 JS (Primary: cdnjs, Fallback: unpkg) -->
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+    onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';document.head.appendChild(s);"
+  ></script>
+
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    body {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+      min-height: 100dvh;
+    }
+
+    /* Temperature-reactive subtle dark radial gradients */
+    .theme-arctic {
+      background: radial-gradient(circle at top right, #1e3a8a 0%, #0f172a 55%, #020617 100%);
+    }
+    .theme-cold {
+      background: radial-gradient(circle at top right, #1d4ed8 0%, #0f172a 58%, #020617 100%);
+    }
+    .theme-cool {
+      background: radial-gradient(circle at top right, #0e7490 0%, #0f172a 58%, #020617 100%);
+    }
+    .theme-mild {
+      background: radial-gradient(circle at top right, #0f766e 0%, #0f172a 58%, #020617 100%);
+    }
+    .theme-warm {
+      background: radial-gradient(circle at top right, #0284c7 0%, #0f172a 58%, #020617 100%);
+    }
+    .theme-tropical {
+      background: radial-gradient(circle at top right, #c2410c 0%, #0f172a 58%, #020617 100%);
+    }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .glass-pill {
+      background: rgba(255, 255, 255, 0.09);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    /* Hide scrollbar on horizontal 24-hour forecast strip */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Pulsing blue dot marker for user location */
+    .user-pulse-marker {
+      position: relative;
+      width: 18px;
+      height: 18px;
+    }
+    .user-pulse-dot {
+      position: absolute;
+      inset: 3px;
+      background: #3b82f6;
+      border: 2.5px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.9);
+      z-index: 2;
+    }
+    .user-pulse-ring {
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      background: rgba(59, 130, 246, 0.4);
+      animation: userPulse 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+      z-index: 1;
+    }
+    @keyframes userPulse {
+      0% { transform: scale(0.5); opacity: 0.9; }
+      100% { transform: scale(2.1); opacity: 0; }
+    }
+
+    /* Teal pin marker for nearest beach */
+    .beach-pin-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+    }
+
+    /* Leaflet tooltip & attribution refinements */
+    .leaflet-tooltip.custom-map-label {
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-family: "Inter", sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+      white-space: nowrap;
+    }
+    .leaflet-tooltip-top.custom-map-label::before {
+      border-top-color: rgba(15, 23, 42, 0.92);
+    }
+    .leaflet-control-attribution {
+      font-size: 9px !important;
+      background: rgba(15, 23, 42, 0.72) !important;
+      color: rgba(255, 255, 255, 0.65) !important;
+    }
+    .leaflet-control-attribution a {
+      color: rgba(255, 255, 255, 0.8) !important;
+    }
+  </style>
+</head>
+<body class="theme-cool text-slate-100 antialiased selection:bg-sky-400/30">
+
+  <!-- Mobile-First Main Container (max-width 480px) -->
+  <div class="w-full max-w-[480px] mx-auto px-4 pt-5 pb-10 flex flex-col gap-3.5">
+
+    <!-- Header & °C / °F Toggle -->
+    <header class="flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white leading-tight truncate">
+          Can I Swim Without a Wetsuit?
+        </h1>
+        <p id="locationSubtitle" class="text-xs text-slate-400 font-medium mt-0.5 truncate">
+          Checking GPS location...
+        </p>
+      </div>
+
+      <button
+        id="unitToggleBtn"
+        type="button"
+        aria-label="Toggle temperature unit between Celsius and Fahrenheit"
+        class="glass-pill shrink-0 rounded-full p-1 flex items-center text-xs font-bold transition active:scale-95"
+      >
+        <span id="unitC" class="px-2.5 py-1 rounded-full bg-white text-slate-950 transition-all">°C</span>
+        <span id="unitF" class="px-2.5 py-1 rounded-full text-slate-300 transition-all">°F</span>
+      </button>
+    </header>
+
+    <!-- Search Bar & Relocate Button -->
+    <section class="flex gap-2 relative z-[500]">
+      <div class="relative flex-1">
+        <input
+          id="searchInput"
+          type="text"
+          autocomplete="off"
+          placeholder="Search any city or coastal spot..."
+          class="w-full rounded-2xl bg-white/[0.08] border border-white/15 px-4 py-3 pl-10 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:bg-white/[0.12] transition"
+        />
+        <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="M21 21l-4.35-4.35"></path>
+        </svg>
+
+        <!-- Geocoding Autocomplete Dropdown -->
+        <div
+          id="searchDropdown"
+          class="hidden absolute left-0 right-0 top-[calc(100%+6px)] rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl overflow-hidden z-[600]"
+        ></div>
+      </div>
+
+      <!-- Relocate GPS Button -->
+      <button
+        id="relocateBtn"
+        type="button"
+        title="Relocate using GPS"
+        class="glass-pill rounded-2xl px-3.5 py-3 flex items-center justify-center gap-1.5 text-xs sm:text-sm font-semibold text-white hover:bg-white/15 active:scale-95 transition shrink-0"
+      >
+        <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v3m0 14v3m10-10h-3M5 12H2m15 0a5 5 0 11-10 0 5 5 0 0110 0z" />
+        </svg>
+        <span>Relocate</span>
+      </button>
+    </section>
+
+    <!-- Non-Blocking Status / Error Banner -->
+    <div
+      id="errorBanner"
+      class="hidden rounded-2xl bg-amber-500/15 border border-amber-400/35 px-4 py-3 text-xs sm:text-sm text-amber-100 flex items-center justify-between gap-3"
+    >
+      <span id="errorText">Using estimated sea data.</span>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button id="retryBtn" type="button" class="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 font-semibold text-xs transition">
+          Retry
+        </button>
+        <button id="dismissErrorBtn" type="button" aria-label="Dismiss message" class="px-2 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 font-semibold text-xs transition">
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- Hero Sea Surface Temperature & Survival Card -->
+    <section class="glass-card rounded-3xl p-5 shadow-2xl relative overflow-hidden flex flex-col gap-4">
+      <!-- Loading Overlay -->
+      <div id="loadingOverlay" class="hidden absolute inset-0 bg-slate-950/75 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-3 px-4 text-center">
+        <div class="w-9 h-9 rounded-full border-white/20 border-t-sky-400 animate-spin" style="border-width: 3px;"></div>
+        <p id="loadingText" class="text-xs sm:text-sm font-semibold text-slate-200">Finding nearest beach...</p>
+      </div>
+
+      <!-- Nearest Beach Header & Swim Verdict Badge -->
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <p class="text-[11px] uppercase tracking-widest font-bold text-slate-400">Nearest Beach</p>
+          <h2 id="beachName" class="text-lg sm:text-xl font-extrabold text-white leading-snug truncate">
+            Locating...
+          </h2>
+        </div>
+        <span
+          id="verdictBadge"
+          class="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold tracking-wide uppercase bg-white/15 text-white border border-white/15"
+        >
+          CHECKING
+        </span>
+      </div>
+
+      <!-- Live Sea Temperature & Wave Height Row -->
+      <div class="flex items-end justify-between gap-3">
+        <div class="flex items-baseline gap-1">
+          <span id="tempValue" class="text-6xl font-black tracking-tighter leading-none text-white">--</span>
+          <span id="tempUnit" class="text-2xl font-bold text-slate-400">°C</span>
+        </div>
+
+        <div class="flex flex-col items-end gap-1.5">
+          <div class="glass-pill rounded-full px-3 py-1.5 text-xs font-semibold text-slate-100 flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2 12c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0M2 17c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0" />
+            </svg>
+            <span id="waveHeight">-- m waves</span>
+          </div>
+          <span id="updatedTime" class="text-[11px] text-slate-400 font-medium">Open-Meteo Marine</span>
+        </div>
+      </div>
+
+      <!-- Temperature-Aligned Factual Reference Box (380 Facts) -->
+      <div class="rounded-2xl bg-slate-950/45 border border-white/10 p-4 flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2">
+          <span id="factLabel" class="text-[11px] uppercase tracking-wider font-bold text-sky-300">
+            Temperature Fact
+          </span>
+          <button
+            id="nextFactBtn"
+            type="button"
+            class="text-[11px] font-semibold text-slate-300 hover:text-white bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full transition active:scale-95 flex items-center gap-1"
+          >
+            <span>Next fact</span>
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+        <p id="factText" class="text-sm leading-relaxed text-slate-100 font-medium">
+          Fetching live sea surface temperature...
+        </p>
+      </div>
+    </section>
+
+    <!-- Two-Column Wetsuit & Cold-Water Immersion Grid -->
+    <section class="grid grid-cols-2 gap-3">
+      <div class="glass-card rounded-3xl p-4 flex flex-col justify-between gap-2">
+        <div class="flex items-center gap-2 text-slate-400">
+          <svg class="w-4 h-4 text-teal-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 3h6l2 4 3 2v4l-3 1v7H7v-7l-3-1V9l3-2 2-4z" />
+          </svg>
+          <span class="text-[11px] uppercase tracking-wider font-bold">Wetsuit Guide</span>
+        </div>
+        <p id="wetsuitValue" class="text-base sm:text-lg font-extrabold text-white leading-snug">--</p>
+        <p id="wetsuitNote" class="text-xs text-slate-400 leading-snug">Calculating gear...</p>
+      </div>
+
+      <div class="glass-card rounded-3xl p-4 flex flex-col justify-between gap-2">
+        <div class="flex items-center gap-2 text-slate-400">
+          <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2" />
+          </svg>
+          <span class="text-[11px] uppercase tracking-wider font-bold">Without Suit</span>
+        </div>
+        <p id="hypothermiaValue" class="text-base sm:text-lg font-extrabold text-white leading-snug">--</p>
+        <p id="hypothermiaNote" class="text-xs text-slate-400 leading-snug">Cold immersion window</p>
+      </div>
+    </section>
+
+    <!-- Interactive Nearest Beach Map Card -->
+    <section class="glass-card rounded-3xl overflow-hidden flex flex-col">
+      <div class="relative w-full h-[230px] bg-slate-900">
+        <div id="map" class="w-full h-full z-10"></div>
+        <div id="mapFallback" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center p-4 text-center bg-slate-900/95 text-xs text-slate-300">
+          Map tiles unavailable in current network view. Straight-line bearing is shown below.
+        </div>
+      </div>
+
+      <div class="px-4 py-3 flex items-center justify-between gap-2 text-xs border-t border-white/10">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-white/80 shrink-0"></span>
+          <span id="mapUserLabel" class="text-slate-300 font-medium truncate">Central London</span>
+          <span class="text-slate-500">→</span>
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-teal-400 ring-2 ring-white/80 shrink-0"></span>
+          <span id="mapBeachLabel" class="text-white font-semibold truncate">Nearest Beach</span>
+        </div>
+        <span id="mapDistanceBadge" class="shrink-0 font-bold text-sky-300 bg-sky-500/15 border border-sky-400/25 px-2.5 py-1 rounded-full">
+          -- km
+        </span>
+      </div>
+    </section>
+
+    <!-- 24-Hour Sea Forecast Strip -->
+    <section class="glass-card rounded-3xl p-4 flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs uppercase tracking-wider font-bold text-slate-400">Next 24 Hours Sea Temp</h3>
+        <span class="text-[11px] text-slate-400">Hourly Marine</span>
+      </div>
+      <div id="forecastStrip" class="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
+        <div class="text-xs text-slate-400 py-2">Loading hourly forecast...</div>
+      </div>
+    </section>
+
+    <!-- Footer Attribution -->
+    <footer class="text-center text-[11px] text-slate-500 pt-1">
+      Live marine data via Open-Meteo • Map tiles © Esri
+    </footer>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      "use strict";
+
+      /* =====================================================================
+       * 1. DEFAULT LOCATION & GLOBAL COASTAL BEACH DATABASE (162 BEACHES)
+       * ===================================================================== */
+      var CENTRAL_LONDON = {
+        lat: 51.5074,
+        lon: -0.1278,
+        label: "Central London (Default)"
+      };
+
+      var BEACHES = [
+        /* UK & Ireland */
+        { name: "Southend-on-Sea Beach, UK", lat: 51.5318, lon: 0.7136 },
+        { name: "Brighton Beach, UK", lat: 50.8195, lon: -0.1365 },
+        { name: "Margate Main Sands, UK", lat: 51.3905, lon: 1.3832 },
+        { name: "Folkestone Sunny Sands, UK", lat: 51.0802, lon: 1.1868 },
+        { name: "Camber Sands, UK", lat: 50.9317, lon: 0.7932 },
+        { name: "Hastings Beach, UK", lat: 50.8548, lon: 0.5835 },
+        { name: "Eastbourne Beach, UK", lat: 50.7680, lon: 0.2905 },
+        { name: "West Wittering Beach, UK", lat: 50.7755, lon: -0.9035 },
+        { name: "Southsea Beach, UK", lat: 50.7785, lon: -1.0882 },
+        { name: "Ryde Beach, Isle of Wight", lat: 50.7336, lon: -1.1618 },
+        { name: "Bournemouth Beach, UK", lat: 50.7161, lon: -1.8758 },
+        { name: "Sandbanks Beach, Poole", lat: 50.6845, lon: -1.9462 },
+        { name: "Swanage Beach, UK", lat: 50.6105, lon: -1.9565 },
+        { name: "Durdle Door, Dorset", lat: 50.6212, lon: -2.2768 },
+        { name: "Weymouth Beach, UK", lat: 50.6135, lon: -2.4525 },
+        { name: "Lyme Regis Beach, UK", lat: 50.7242, lon: -2.9338 },
+        { name: "Torquay Torre Abbey Sands, UK", lat: 50.4618, lon: -3.5382 },
+        { name: "Gyllyngvase Beach, Falmouth", lat: 50.1445, lon: -5.0685 },
+        { name: "Sennen Cove, Cornwall", lat: 50.0758, lon: -5.7025 },
+        { name: "St Ives Harbour Beach, UK", lat: 50.2138, lon: -5.4795 },
+        { name: "Perranporth Beach, UK", lat: 50.3462, lon: -5.1562 },
+        { name: "Fistral Beach, Newquay", lat: 50.4165, lon: -5.1008 },
+        { name: "Croyde Bay, Devon", lat: 51.1298, lon: -4.2368 },
+        { name: "Woolacombe Beach, Devon", lat: 51.1735, lon: -4.2082 },
+        { name: "Weston-super-Mare Beach, UK", lat: 51.3468, lon: -2.9825 },
+        { name: "Porthcawl Rest Bay, Wales", lat: 51.4862, lon: -3.7265 },
+        { name: "Rhossili Bay, Gower", lat: 51.5695, lon: -4.2908 },
+        { name: "Tenby North Beach, Wales", lat: 51.6752, lon: -4.6995 },
+        { name: "Aberystwyth North Beach, Wales", lat: 52.4182, lon: -4.0865 },
+        { name: "Llandudno North Shore, Wales", lat: 53.3258, lon: -3.8255 },
+        { name: "Formby Beach, Merseyside", lat: 53.5565, lon: -3.1035 },
+        { name: "Blackpool Beach, UK", lat: 53.8175, lon: -3.0565 },
+        { name: "Southwold Beach, Suffolk", lat: 52.3268, lon: 1.6825 },
+        { name: "Cromer Beach, Norfolk", lat: 52.9325, lon: 1.3025 },
+        { name: "Skegness Beach, Lincolnshire", lat: 53.1435, lon: 0.3465 },
+        { name: "Filey Beach, Yorkshire", lat: 54.2105, lon: -0.2855 },
+        { name: "Scarborough South Bay, UK", lat: 54.2798, lon: -0.3955 },
+        { name: "Whitby West Cliff Beach, UK", lat: 54.4905, lon: -0.6215 },
+        { name: "Tynemouth Longsands, UK", lat: 55.0225, lon: -1.4225 },
+        { name: "Bamburgh Beach, Northumberland", lat: 55.6095, lon: -1.7085 },
+        { name: "North Berwick West Beach, Scotland", lat: 56.0595, lon: -2.7245 },
+        { name: "St Andrews West Sands, Scotland", lat: 56.3515, lon: -2.8055 },
+        { name: "Aberdeen Beach, Scotland", lat: 57.1565, lon: -2.0755 },
+        { name: "Nairn Central Beach, Scotland", lat: 57.5905, lon: -3.8685 },
+        { name: "Thurso Beach, Scotland", lat: 58.5965, lon: -3.5185 },
+        { name: "Troon South Beach, Scotland", lat: 55.5395, lon: -4.6725 },
+        { name: "Whiterocks Beach, Portrush", lat: 55.2055, lon: -6.6255 },
+        { name: "Tyrella Beach, County Down", lat: 54.2525, lon: -5.7785 },
+        { name: "Bray Beach, Wicklow", lat: 53.2025, lon: -6.0975 },
+        { name: "Brittas Bay, Wicklow", lat: 52.8825, lon: -6.0625 },
+        { name: "Inchydoney Beach, Cork", lat: 51.5975, lon: -8.8625 },
+        { name: "Lahinch Beach, Clare", lat: 52.9335, lon: -9.3485 },
+        { name: "Salthill Beach, Galway", lat: 53.2585, lon: -9.0785 },
+        { name: "Bundoran Beach, Donegal", lat: 54.4785, lon: -8.2815 },
+
+        /* Continental Europe */
+        { name: "Scheveningen Beach, Netherlands", lat: 52.1045, lon: 4.2715 },
+        { name: "Zandvoort Beach, Netherlands", lat: 52.3745, lon: 4.5255 },
+        { name: "Ostend Beach, Belgium", lat: 51.2335, lon: 2.9135 },
+        { name: "Deauville Beach, France", lat: 49.3615, lon: 0.0685 },
+        { name: "Etretat Beach, France", lat: 49.7085, lon: 0.2015 },
+        { name: "La Baule Beach, France", lat: 47.2815, lon: -2.3965 },
+        { name: "Hossegor Beach, France", lat: 43.6655, lon: -1.4435 },
+        { name: "Biarritz Grande Plage, France", lat: 43.4835, lon: -1.5595 },
+        { name: "Nice Promenade des Anglais, France", lat: 43.6945, lon: 7.2655 },
+        { name: "Cannes La Croisette, France", lat: 43.5495, lon: 7.0245 },
+        { name: "La Concha Beach, San Sebastian", lat: 43.3175, lon: -1.9885 },
+        { name: "Barceloneta Beach, Spain", lat: 41.3785, lon: 2.1925 },
+        { name: "Sitges Beach, Spain", lat: 41.2345, lon: 1.8085 },
+        { name: "Malvarrosa Beach, Valencia", lat: 39.4765, lon: -0.3235 },
+        { name: "Playa de la Malagueta, Malaga", lat: 36.7185, lon: -4.4095 },
+        { name: "Tarifa Playa de los Lances, Spain", lat: 36.0185, lon: -5.6145 },
+        { name: "Playa de las Canteras, Gran Canaria", lat: 28.1415, lon: -15.4345 },
+        { name: "Carcavelos Beach, Lisbon", lat: 38.6765, lon: -9.3365 },
+        { name: "Praia do Norte, Nazare", lat: 39.6045, lon: -9.0855 },
+        { name: "Praia da Rocha, Portimao", lat: 37.1165, lon: -8.5365 },
+        { name: "Mondello Beach, Palermo", lat: 38.2045, lon: 13.3265 },
+        { name: "Positano Spiaggia Grande, Italy", lat: 40.6275, lon: 14.4855 },
+        { name: "Rimini Beach, Italy", lat: 44.0725, lon: 12.5785 },
+        { name: "Lido di Venezia, Italy", lat: 45.4135, lon: 12.3735 },
+        { name: "Chia Su Giudeu, Sardinia", lat: 38.8865, lon: 8.8685 },
+        { name: "Banje Beach, Dubrovnik", lat: 42.6405, lon: 18.1165 },
+        { name: "Zlatni Rat, Bol", lat: 43.2565, lon: 16.6335 },
+        { name: "Paradise Beach, Mykonos", lat: 37.4095, lon: 25.3565 },
+        { name: "Elafonissi Beach, Crete", lat: 35.2715, lon: 23.5415 },
+        { name: "Nissi Beach, Ayia Napa", lat: 34.9865, lon: 33.9685 },
+        { name: "Mellieha Bay, Malta", lat: 35.9695, lon: 14.3515 },
+        { name: "Westerland Beach, Sylt", lat: 54.9095, lon: 8.2995 },
+        { name: "Warnemunde Beach, Germany", lat: 54.1815, lon: 12.0835 },
+        { name: "Skagen Grenen Beach, Denmark", lat: 57.7445, lon: 10.6485 },
+        { name: "Ribersborg Beach, Malmo", lat: 55.6015, lon: 12.9685 },
+        { name: "Huk Beach, Oslo", lat: 59.8955, lon: 10.6755 },
+        { name: "Sopot Beach, Poland", lat: 54.4465, lon: 18.5735 },
+        { name: "Jurmala Beach, Latvia", lat: 56.9765, lon: 23.7955 },
+        { name: "Nautholsvik Geothermal Beach, Reykjavik", lat: 64.1215, lon: -21.9285 },
+
+        /* North America & Caribbean */
+        { name: "Coney Island Beach, New York", lat: 40.5735, lon: -73.9785 },
+        { name: "Rockaway Beach, New York", lat: 40.5835, lon: -73.8155 },
+        { name: "Cape May Beach, New Jersey", lat: 38.9315, lon: -74.9185 },
+        { name: "Rehoboth Beach, Delaware", lat: 38.7165, lon: -75.0755 },
+        { name: "Virginia Beach, Virginia", lat: 36.8525, lon: -75.9765 },
+        { name: "Nags Head Beach, Outer Banks", lat: 35.9575, lon: -75.6225 },
+        { name: "Myrtle Beach, South Carolina", lat: 33.6895, lon: -78.8845 },
+        { name: "Miami South Beach, Florida", lat: 25.7825, lon: -80.1295 },
+        { name: "Clearwater Beach, Florida", lat: 27.9775, lon: -82.8285 },
+        { name: "Smathers Beach, Key West", lat: 24.5515, lon: -81.7715 },
+        { name: "Galveston Stewart Beach, Texas", lat: 29.3055, lon: -94.7665 },
+        { name: "South Padre Island, Texas", lat: 26.1115, lon: -97.1665 },
+        { name: "La Jolla Shores, San Diego", lat: 32.8575, lon: -117.2575 },
+        { name: "Huntington Beach, California", lat: 33.6555, lon: -118.0045 },
+        { name: "Santa Monica Beach, California", lat: 34.0095, lon: -118.4975 },
+        { name: "Santa Cruz Main Beach, California", lat: 36.9635, lon: -122.0185 },
+        { name: "Baker Beach, San Francisco", lat: 37.7935, lon: -122.4835 },
+        { name: "Cannon Beach, Oregon", lat: 45.8915, lon: -123.9625 },
+        { name: "Alki Beach, Seattle", lat: 47.5795, lon: -122.4115 },
+        { name: "Waikiki Beach, Honolulu", lat: 21.2765, lon: -157.8265 },
+        { name: "Ehukai Beach Pipeline, Oahu", lat: 21.6645, lon: -158.0535 },
+        { name: "Kitsilano Beach, Vancouver", lat: 49.2745, lon: -123.1545 },
+        { name: "Lawrencetown Beach, Nova Scotia", lat: 44.6455, lon: -63.3365 },
+        { name: "Playa del Carmen, Mexico", lat: 20.6255, lon: -87.0715 },
+        { name: "Playa El Medano, Cabo San Lucas", lat: 22.8885, lon: -109.9035 },
+        { name: "Seven Mile Beach, Grand Cayman", lat: 19.3365, lon: -81.3815 },
+        { name: "Eagle Beach, Aruba", lat: 12.5515, lon: -70.0565 },
+        { name: "Condado Beach, San Juan", lat: 18.4585, lon: -66.0715 },
+
+        /* South America */
+        { name: "Copacabana Beach, Rio de Janeiro", lat: -22.9715, lon: -43.1825 },
+        { name: "Ipanema Beach, Rio de Janeiro", lat: -22.9865, lon: -43.2045 },
+        { name: "Praia do Rosa, Santa Catarina", lat: -28.1265, lon: -48.6375 },
+        { name: "Playa Brava, Punta del Este", lat: -34.9565, lon: -54.9315 },
+        { name: "Playa Grande, Mar del Plata", lat: -38.0285, lon: -57.5315 },
+        { name: "Renaca Beach, Vina del Mar", lat: -32.9725, lon: -71.5455 },
+        { name: "Punta de Lobos, Pichilemu", lat: -34.4265, lon: -72.0465 },
+        { name: "Playa Waikiki, Miraflores Lima", lat: -12.1235, lon: -77.0395 },
+        { name: "Bocagrande Beach, Cartagena", lat: 10.4025, lon: -75.5575 },
+
+        /* Australia & New Zealand */
+        { name: "Bondi Beach, Sydney", lat: -33.8915, lon: 151.2765 },
+        { name: "Manly Beach, Sydney", lat: -33.7965, lon: 151.2885 },
+        { name: "Byron Bay Main Beach, Australia", lat: -28.6415, lon: 153.6155 },
+        { name: "Surfers Paradise, Gold Coast", lat: -28.0015, lon: 153.4315 },
+        { name: "Noosa Main Beach, Queensland", lat: -26.3865, lon: 153.0915 },
+        { name: "St Kilda Beach, Melbourne", lat: -37.8675, lon: 144.9735 },
+        { name: "Bells Beach, Victoria", lat: -38.3685, lon: 144.2835 },
+        { name: "Cottesloe Beach, Perth", lat: -31.9955, lon: 115.7515 },
+        { name: "Glenelg Beach, Adelaide", lat: -34.9795, lon: 138.5115 },
+        { name: "Cable Beach, Broome", lat: -17.9325, lon: 122.2085 },
+        { name: "Mission Bay, Auckland", lat: -36.8485, lon: 174.8315 },
+        { name: "Piha Beach, Auckland", lat: -36.9545, lon: 174.4685 },
+        { name: "Mount Maunganui Beach, NZ", lat: -37.6345, lon: 176.1835 },
+        { name: "Sumner Beach, Christchurch", lat: -43.5685, lon: 172.7615 },
+
+        /* Asia, Middle East & Africa */
+        { name: "Jumeirah Open Beach, Dubai", lat: 25.2145, lon: 55.2465 },
+        { name: "Saadiyat Beach, Abu Dhabi", lat: 24.5445, lon: 54.4265 },
+        { name: "Juhu Beach, Mumbai", lat: 19.0985, lon: 72.8265 },
+        { name: "Palolem Beach, Goa", lat: 15.0105, lon: 74.0225 },
+        { name: "Varkala Beach, Kerala", lat: 8.7355, lon: 76.7035 },
+        { name: "Unawatuna Beach, Sri Lanka", lat: 6.0095, lon: 80.2495 },
+        { name: "Patong Beach, Phuket", lat: 7.8965, lon: 98.2955 },
+        { name: "Chaweng Beach, Koh Samui", lat: 9.5305, lon: 100.0635 },
+        { name: "Siloso Beach, Sentosa Singapore", lat: 1.2545, lon: 103.8125 },
+        { name: "Kuta Beach, Bali", lat: -8.7185, lon: 115.1685 },
+        { name: "White Beach, Boracay", lat: 11.9615, lon: 121.9245 },
+        { name: "Haeundae Beach, Busan", lat: 35.1585, lon: 129.1605 },
+        { name: "Zushi Beach, Kanagawa", lat: 35.2915, lon: 139.5715 },
+        { name: "Shirahama Beach, Wakayama", lat: 33.6815, lon: 135.3445 },
+        { name: "Repulse Bay Beach, Hong Kong", lat: 22.2365, lon: 114.1975 },
+        { name: "Camps Bay Beach, Cape Town", lat: -33.9515, lon: 18.3775 },
+        { name: "Muizenberg Beach, Cape Town", lat: -34.1085, lon: 18.4715 },
+        { name: "Durban North Beach, South Africa", lat: -29.8485, lon: 31.0365 },
+        { name: "Diani Beach, Kenya", lat: -4.3225, lon: 39.5765 },
+        { name: "Nungwi Beach, Zanzibar", lat: -5.7255, lon: 39.2955 },
+        { name: "Naama Bay, Sharm El Sheikh", lat: 27.9125, lon: 34.3285 }
+      ];
+
+      /* =====================================================================
+       * 2. 380 VERIFIED TEMPERATURE-ALIGNED FACTS (-2°C TO 35°C, 10 PER DEGREE)
+       * ===================================================================== */
+      var TEMP_FACTS = {
+        "-2": [
+          "Standard ocean water with 35 parts per thousand salinity freezes at roughly -1.9°C rather than 0°C.",
+          "Antarctic toothfish produce antifreeze glycoproteins in their blood that prevent ice crystals from growing down to -2.2°C.",
+          "Brinicles form beneath Antarctic sea ice when supercooled brine around -2°C sinks and freezes surrounding seawater on contact.",
+          "At -2°C, a saturated sodium chloride road-deicing brine remains completely liquid on asphalt.",
+          "Cold-water coral reefs off Norway thrive in deep Atlantic waters hovering between -1°C and 4°C.",
+          "Emperor penguins routinely dive into -1.8°C Ross Sea water to depths exceeding 500 meters.",
+          "Pure liquid water supercooled to -2°C freezes instantaneously if disturbed by a dust particle or sharp tap.",
+          "Sea ice crystals expel most dissolved salt as they freeze at -2°C, leaving behind dense, salty brine pockets.",
+          "Commercial blast chillers cool freshly cooked seafood through -2°C rapidly to keep ice crystals microscopic.",
+          "At -2°C, cold receptors in human skin fire near their peak rate, triggering an involuntary cold-shock gasp within seconds."
+        ],
+        "-1": [
+          "Seawater in the Arctic Ocean typically rests near -1.5°C directly beneath multi-year pack ice.",
+          "Bowhead whales migrate through -1°C Arctic leads insulated by a blubber layer up to 50 centimeters thick.",
+          "A 10 percent sugar solution depresses the freezing point of water to about -1°C, keeping sorbet bases fluid.",
+          "Greenland sharks cruise slowly through -1°C North Atlantic depths with the lowest swimming speed of any large fish.",
+          "Wet snow on mountain passes hovers near -1°C, creating slick black ice when compacted by vehicle tires.",
+          "At -1°C, high-salinity soy sauce remains completely unfrozen inside a standard kitchen freezer.",
+          "Walruses constrict blood vessels in their skin in -1°C water, turning their hide pale white to conserve core heat.",
+          "Frazil ice needles begin coalescing into slushy grease ice on choppy polar seas near -1°C.",
+          "Red blood cells stored in glycerol cryoprotectant survive sub-zero storage below -1°C without membrane rupture.",
+          "Water expands by roughly 9 percent upon crystallizing into hexagonal ice just below 0°C and -1°C."
+        ],
+        "0": [
+          "Pure freshwater transitions between solid ice and liquid water at 0°C under standard atmospheric pressure of 101.325 kPa.",
+          "A well-stirred bath of crushed ice and pure water maintains a steady calibration temperature of exactly 0°C.",
+          "Water ice at 0°C has a density of 0.917 grams per cubic centimeter, which is why icebergs float with roughly 10 percent above water.",
+          "Ice hockey rinks keep their ice surface colder than 0°C, typically around -5°C, so skate blades glide on a microscopic pressure-melted film.",
+          "Freshly fallen snowflakes form intricate six-sided dendrites most readily when cloud temperatures sit just below 0°C.",
+          "A single gram of ice at 0°C absorbs 334 joules of latent heat simply to melt into liquid water at the same 0°C temperature.",
+          "At 0°C, air holds at most 4.85 grams of water vapor per cubic meter before reaching 100 percent relative humidity.",
+          "Wood frogs survive winter temperatures dipping below 0°C by flooding their cells with glucose as a natural cryoprotectant.",
+          "Refrigerator crisper drawers set right at 0°C slow bacterial growth in leafy greens without freezing plant cell walls.",
+          "Unprotected human fingers lose manual dexterity within 2 to 3 minutes when submerged in 0°C ice water."
+        ],
+        "1": [
+          "Liquid freshwater at 1°C is slightly less dense than water at 4°C, causing 1°C water to float atop deeper lake layers in winter.",
+          "Standard domestic refrigerators aim for an internal temperature between 1°C and 4°C to keep milk and fresh meat safe.",
+          "Cold-water kelp forests off northern Hokkaido grow rapidly in nutrient-rich spring currents near 1°C.",
+          "In 1°C water, heat conducts away from bare human skin roughly 25 times faster than in air of the same temperature.",
+          "Boreal winter ground temperatures around 1°C trigger vernalization in winter wheat, enabling it to flower in spring.",
+          "Icelandic lumpfish spawn in shallow coastal waters when sea temperatures hover between 1°C and 4°C.",
+          "At 1°C, the dynamic viscosity of liquid water is nearly double its viscosity at room temperature.",
+          "Snowmelt runoff feeding high-altitude alpine streams often enters valley rivers at a brisk 1°C to 2°C.",
+          "Commercial florists store cut tulips at 1°C to pause stem elongation until delivery.",
+          "Submerging the face in 1°C water triggers the mammalian diving reflex, slowing human heart rate by 10 to 25 percent."
+        ],
+        "2": [
+          "Deep ocean water below 1,000 meters across most of the globe maintains a nearly constant temperature of 2°C to 4°C.",
+          "RMS Titanic sank in North Atlantic waters measured at roughly 2°C on the night of April 15, 1912.",
+          "At 2°C, sound travels through seawater at approximately 1,458 meters per second, noticeably slower than in warm tropical seas.",
+          "Narwhals dive more than 1,500 meters into 2°C Baffin Bay waters to hunt Greenland halibut.",
+          "Brewers cold-crash fermenting beer down to 2°C so suspended yeast and proteins settle cleanly to the bottom.",
+          "At 2°C, dissolved oxygen concentration in freshwater reaches about 13.8 milligrams per liter, supporting cold-water trout.",
+          "King crabs thrive along the Bering Sea shelf in bottom temperatures averaging 2°C to 5°C.",
+          "Butter stored at 2°C has a firm crystal lattice that requires roughly four times more force to spread than at 20°C.",
+          "Cold-seep tubeworms on the deep continental slope live in 2°C seawater fueled by methane-oxidizing bacteria.",
+          "International Ice Swimming Association rules classify any official swim in water below 5°C, including 2°C, as an ice swim."
+        ],
+        "3": [
+          "Freshwater at 3°C is within a hair of its maximum density, sinking to the bottom of dimictic lakes each autumn.",
+          "Atlantic cod spawn heavily in the Lofoten archipelago when coastal water temperatures sit between 3°C and 6°C.",
+          "At 3°C, cold-blooded lake trout reduce their metabolic rate to a fraction of their summer peak.",
+          "Artisanal sourdough bakers often retard shaped dough overnight at 3°C to develop complex organic acids.",
+          "Sea otters maintain a 37°C body temperature in 3°C North Pacific waters using the densest fur of any mammal, up to 150,000 hairs per square centimeter.",
+          "At 3°C, saturated air holds only 5.95 grams of water vapor per cubic meter.",
+          "Snow begins to melt steadily on shaded road surfaces once pavement temperatures climb to 3°C.",
+          "Champagne served at 3°C suppresses aromatic esters slightly compared to the ideal 8°C to 10°C cellar temperature.",
+          "Spring meltwater entering the Baltic Sea keeps surface coastal temperatures near 3°C well into April.",
+          "Peripheral vasoconstriction in 3°C water reduces blood flow to human hands and feet by more than 90 percent."
+        ],
+        "4": [
+          "Pure liquid water reaches its maximum density of 1.0000 gram per cubic centimeter at precisely 3.98°C, effectively 4°C.",
+          "Because water is densest at 4°C, the bottom of deep freshwater lakes stays near 4°C even when the surface freezes solid.",
+          "Food safety agencies worldwide set 4°C as the upper safe threshold for household refrigerator storage.",
+          "At 4°C, water exhibits a tiny thermal expansion coefficient of zero, neither expanding nor contracting with a slight temperature nudge.",
+          "Sockeye salmon smolts begin migrating downstream toward the Pacific once river temperatures warm past 4°C.",
+          "Fresh whole milk stored at 4°C stays palatable roughly four times longer than milk left at 10°C.",
+          "Diving in 4°C quarry water typically requires a 7 mm full neoprene wetsuit or a drysuit with thermal undergarments.",
+          "At 4°C, the refractive index of pure water is 1.3340, bending incoming sunlight slightly more than warm water does.",
+          "Dormant apple trees accumulate chilling hours most efficiently when winter temperatures sit between 0°C and 7°C, peaking near 4°C.",
+          "Carbonated water at 4°C holds nearly twice as much dissolved CO2 gas as water at 25°C."
+        ],
+        "5": [
+          "5°C is the official upper cutoff temperature for competitive ice swimming events recognized by international governing bodies.",
+          "Grass stops active photosynthesis and blade growth once soil temperatures drop below 5°C.",
+          "Harbor seals rely on a 3 to 5 centimeter subcutaneous blubber layer to rest comfortably in 5°C North Sea waters.",
+          "At 5°C, the speed of sound in open seawater is roughly 1,471 meters per second.",
+          "Cold-pressed extra-virgin olive oil begins turning cloudy near 5°C as natural waxes and triglycerides crystallize.",
+          "Brook trout feed actively in mountain streams once spring water temperatures reach 5°C.",
+          "At 5°C, human shivering thermogenesis can temporarily boost resting metabolic heat production up to fivefold.",
+          "Commercial apple storage facilities hold Honeycrisp apples near 5°C to prevent low-temperature breakdown.",
+          "English Channel winter sea surface temperatures off Dover frequently bottom out between 5°C and 7°C in February.",
+          "A 5°C change in Celsius equals an exact 9°F change on the Fahrenheit scale."
+        ],
+        "6": [
+          "North Sea surface temperatures off eastern Scotland and Yorkshire average around 6°C during late winter.",
+          "Honeybees cluster tightly inside their hive once outside air drops below 6°C, vibrating flight muscles to keep the queen warm.",
+          "At 6°C, seawater holds roughly 30 percent more dissolved oxygen than tropical water at 28°C.",
+          "Pacific herring gather in massive coastal spawning schools when nearshore water reaches 6°C to 9°C.",
+          "Dark chocolate stored at 6°C can develop harmless sugar bloom if moved directly into a humid room.",
+          "At 6°C, pure water has a specific heat capacity of 4,202 joules per kilogram per kelvin.",
+          "Winter surf sessions in 6°C water typically call for a hooded 5/4 mm wetsuit, boots, and gloves.",
+          "Geothermal heat pumps extract steady thermal energy from ground loops sitting at 6°C to 10°C year-round.",
+          "At 6°C, yeast fermentation in lager beer slows to a gentle crawl, taking weeks to finish.",
+          "Sea urchins in cold temperate kelp beds graze roughly half as fast at 6°C as they do at 14°C."
+        ],
+        "7": [
+          "7°C is the standard laboratory reference temperature used to rate cold-weather sleeping bags and winter tire compounds.",
+          "All-season car tires lose rubber elasticity below 7°C, which is why winter tire compounds are formulated for under 7°C.",
+          "Atlantic salmon parr begin smoltification in northern rivers as spring water warms through 7°C.",
+          "Crisp white wines such as Sauvignon Blanc and Pinot Grigio express peak acidity when chilled to 7°C.",
+          "At 7°C, cold-water immersion without thermal protection triggers painful cold-induced vasodilation cycles in fingers and toes.",
+          "Giant Pacific octopuses thrive in Puget Sound waters ranging from 7°C to 12°C.",
+          "Bakers yeast (Saccharomyces cerevisiae) becomes nearly dormant at 7°C, pausing dough rise cleanly.",
+          "Southern California upwelling events can briefly drop summer surf temperatures near Point Conception down to 7°C to 10°C.",
+          "At 7°C, saturated air contains 7.8 grams of water vapor per cubic meter.",
+          "Cold-water oysters enter hibernation below 7°C, closing their shells and halting filter feeding."
+        ],
+        "8": [
+          "8°C is the typical early-spring sea temperature along the southern English coast, Irish Sea, and Pacific Northwest.",
+          "Chinook salmon migrate upstream most efficiently in river temperatures between 8°C and 13°C.",
+          "Traditional Belgian lambic and Trappist ales are cellar-conditioned at 8°C to 12°C.",
+          "At 8°C, bare skin immersed in moving water loses heat roughly four times faster than in still water of the same temperature.",
+          "Dungeness crabs molt and mate in coastal bays when water temperatures sit near 8°C to 11°C.",
+          "Freshly harvested potatoes are cured and stored around 8°C so starches do not convert prematurely into sugars.",
+          "At 8°C, seawater has a density of roughly 1,027.3 kilograms per cubic meter.",
+          "Basking sharks return to the Celtic Sea and Hebrides in spring as surface waters warm above 8°C to 10°C.",
+          "Standard domestic cold tap water in northern Europe enters homes from underground mains at roughly 8°C to 11°C.",
+          "Cold-water swimmers adapting to 8°C water develop brown adipose tissue activity that generates non-shivering heat."
+        ],
+        "9": [
+          "9°C sits right at the boundary where an unacclimatized swimmer experiences sharp cold shock and rapid breathing upon entry.",
+          "Atlantic mackerel schools begin migrating northward into the North Sea once water warms past 9°C to 11°C.",
+          "Oaked Chardonnay and dry Champagne reveal optimal aromatic complexity when served at 9°C.",
+          "At 9°C, water vapor saturation pressure is 1.15 kilopascals, less than one-third of its value at 25°C.",
+          "Spring asparagus spears emerge from garden soil once ground temperatures reach 9°C to 10°C.",
+          "Great white sharks patrolling central California waters frequently hunt in ocean temperatures between 9°C and 15°C.",
+          "At 9°C, a 4/3 mm or 5/4 mm full wetsuit keeps recreational surfers comfortable for over an hour.",
+          "Rainbow trout show peak appetite and growth efficiency in clean freshwater between 9°C and 15°C.",
+          "Compost piles drop into a slow mesophilic curing phase once internal temperatures cool to 9°C.",
+          "At 9°C, sound travels through seawater at approximately 1,487 meters per second."
+        ],
+        "10": [
+          "10°C equals exactly 50°F, one of the cleanest integer crossovers between the Celsius and Fahrenheit scales.",
+          "50°F (10°C) is the classic benchmark used by maritime rescue agencies for cold-water immersion survival charts.",
+          "Beneath roughly 15 meters of soil, shallow groundwater across temperate latitudes stays near 10°C all year.",
+          "Honeybees resume active foraging flights outside the hive once ambient temperatures climb above 10°C.",
+          "European sea bass begin moving into estuaries and shallow surf zones when spring sea temperatures reach 10°C to 12°C.",
+          "At 10°C, liquid water has a density of 0.9997 grams per cubic centimeter.",
+          "English Channel solo swimmers regularly train in 10°C to 12°C water without wetsuits to build cold tolerance.",
+          "Sweet corn seeds planted in soil colder than 10°C rarely germinate and often rot before sprouting.",
+          "Traditional British cask ale is ideally cellared and served between 10°C and 13°C.",
+          "At 10°C, dissolved oxygen in seawater measures roughly 9.2 milligrams per liter."
+        ],
+        "11": [
+          "11°C is the average annual sea surface temperature off San Francisco, Big Sur, and northern Cornwall in spring.",
+          "California sea lions cruise comfortably through 11°C coastal currents insulated by dense fur and blubber.",
+          "Light-bodied red wines such as Beaujolais and Pinot Noir shine when lightly chilled to 11°C to 13°C.",
+          "At 11°C, cold-shock respiratory gasp subsides within 60 to 90 seconds if a swimmer controls their breathing.",
+          "Bull kelp (Nereocystis luetkeana) can grow up to 25 centimeters per day in sunlit 11°C Pacific waters.",
+          "Household refrigerators set to 11°C allow Listeria bacteria to multiply, which is why fridges must stay at or below 4°C.",
+          "At 11°C, air holds up to 10.0 grams of water vapor per cubic meter at saturation.",
+          "Spiny lobsters along southern Australian reefs forage most actively when bottom waters sit between 11°C and 16°C.",
+          "A 4/3 mm full steamer wetsuit is the standard gear choice for surfing in 11°C ocean swells.",
+          "Geothermal caves such as Mammoth Cave in Kentucky maintain a constant year-round air temperature near 11°C to 12°C."
+        ],
+        "12": [
+          "12°C is the typical early-summer water temperature in the Irish Sea, Scottish lochs, and coastal Maine.",
+          "Tropical houseplants such as monstera and pothos suffer cellular chilling injury if exposed to temperatures below 12°C.",
+          "Wine cellars around the world target 12°C to 13°C as the gold-standard temperature for long-term bottle aging.",
+          "At 12°C, cold receptors in human skin fire steadily, producing a brisk, invigorating sensation after initial adaptation.",
+          "Bluefin tuna migrate into the North Atlantic and North Sea during summer to feed in 12°C to 18°C waters.",
+          "Bananas stored below 12°C develop grey, water-soaked skin because cold damages their tropical cell membranes.",
+          "At 12°C, the speed of sound in standard seawater reaches roughly 1,497 meters per second.",
+          "Limestone karst springs across Florida and Texas emerge from underground aquifers at a steady 12°C to 22°C depending on latitude.",
+          "Unprotected human grip strength drops by roughly 20 to 30 percent after 15 minutes in 12°C water.",
+          "Mussels and barnacles filter seawater at near-optimal rates between 12°C and 18°C."
+        ],
+        "13": [
+          "13°C is a common midsummer sea temperature along the coasts of Brittany, Devon, Cornwall, and northern California.",
+          "Tomatoes lose volatile aroma compounds when chilled below 13°C, which is why chefs store ripe tomatoes on the counter.",
+          "At 13°C, pure water has a surface tension of 73.8 millinewtons per meter, slightly higher than at room temperature.",
+          "Leatherback sea turtles can forage in 13°C temperate waters thanks to counter-current heat exchangers in their flippers.",
+          "Artisanal hard cheeses such as Cheddar and Comte mature in aging caves kept between 12°C and 14°C.",
+          "At 13°C, a 3/2 mm or 4/3 mm full wetsuit provides comfortable thermal balance for active swimming and surfing.",
+          "Atlantic puffins dive to depths of 60 meters in 13°C summer North Atlantic waters to catch sand eels.",
+          "Cacao butter begins softening slightly above 13°C, though chocolate keeps its crisp snap until about 28°C.",
+          "At 13°C, saturated air holds 11.4 grams of water vapor per cubic meter.",
+          "European eels begin their 5,000-kilometer autumn migration toward the Sargasso Sea as river temperatures dip toward 13°C."
+        ],
+        "14": [
+          "14°C marks the lower end of typical late-summer English Channel sea temperatures during cross-Channel swim attempts.",
+          "At 14°C, most recreational swimmers can swim comfortably without a wetsuit for 20 to 40 minutes if moving steadily.",
+          "Sea otters in Monterey Bay spend their entire lives in Pacific waters averaging 12°C to 15°C.",
+          "Medium-bodied red wines such as Chianti and Merlot show balanced tannins when served at 14°C to 16°C.",
+          "At 14°C, seawater conducts sound at roughly 1,504 meters per second.",
+          "Monarch butterflies require air temperatures above 13°C to 14°C to generate enough flight muscle heat to take off.",
+          "Chalk streams in southern England stay near 11°C to 14°C year-round, creating world-famous brown trout habitats.",
+          "At 14°C, a 3/2 mm wetsuit is plenty for multi-hour surf or paddleboarding sessions.",
+          "Sweet potatoes cured at warm temperatures must be stored above 13°C to 14°C to avoid hard core spoilage.",
+          "Common cuttlefish migrate into shallow English Channel seagrass beds to spawn when water warms to 14°C."
+        ],
+        "15": [
+          "15°C (59°F) is the International Standard Atmosphere sea-level reference temperature used in aviation engineering.",
+          "15°C is the Earth's approximate global mean surface air temperature across all continents and oceans combined.",
+          "At 15°C, pure water has a density of 0.9991 grams per cubic centimeter and a viscosity of 1.138 millipascal-seconds.",
+          "A 15°C change in Celsius equals an exact 27°F difference on the Fahrenheit scale.",
+          "Calorie energy units were historically defined by the heat needed to raise 1 gram of water from 14.5°C to 15.5°C.",
+          "Bottlenose dolphins patrol UK, Irish, and Californian coastlines comfortably in 15°C summer seas.",
+          "Full-bodied red wines such as Cabernet Sauvignon and Syrah are ideally served at cellar-cool 15°C to 17°C.",
+          "At 15°C, healthy adults can swim without a wetsuit for 30 to 60 minutes without risking hypothermia.",
+          "Perennial ryegrass and clover pastures achieve peak spring growth rates when soil temperatures reach 15°C.",
+          "At 15°C, dissolved oxygen in coastal seawater sits near 8.2 milligrams per liter."
+        ],
+        "16": [
+          "16°C (60.8°F) is the minimum water temperature permitted for World Aquatics elite open-water 10 km marathon races without wetsuits.",
+          "Summer sea surface temperatures around Brighton, Bournemouth, and Normandy typically peak between 16°C and 18°C.",
+          "At 16°C, a light 2 mm spring suit or neoprene vest adds comfort for long surf sessions, while swimmers go skins.",
+          "Honeybees maintain their brood nest at 35°C, clustering tightly whenever outside air falls below 16°C.",
+          "At 16°C, the speed of sound in open seawater is roughly 1,510 meters per second.",
+          "Avocados ripen steadily on a kitchen counter at 16°C to 20°C without developing dark chilling spots.",
+          "Great white sharks migrate past Cape Cod and Nantucket during summer when water temperatures sit near 16°C to 20°C.",
+          "At 16°C, human skin blood vessels constrict mildly at first, then reach a comfortable thermal equilibrium during vigorous swimming.",
+          "Wild Atlantic salmon hold in deep river pools and leap waterfalls most actively at water temperatures of 14°C to 16°C.",
+          "At 16°C, saturated air holds 13.6 grams of water vapor per cubic meter."
+        ],
+        "17": [
+          "17°C is the classic late-summer sea temperature along the southern UK coast, northern Spain, and Oregon.",
+          "A 2 mm shorty wetsuit or swimwear with a rash guard is ideal for active water sports at 17°C.",
+          "At 17°C, coconut oil remains completely solid, as its sharp melting point lies at 24°C.",
+          "Pacific sardines form massive baitballs along the California and South African coasts in 15°C to 18°C upwelling waters.",
+          "Competitive distance training pools are kept around 25°C, whereas 17°C ocean water feels crisp and refreshing.",
+          "At 17°C, water vapor saturation pressure reaches 1.94 kilopascals.",
+          "European lobsters grow and molt rapidly during summer months when coastal seabed temperatures reach 17°C.",
+          "Bread dough proofed at 17°C rises roughly half as fast as dough proofed at 25°C, giving bakers finer control.",
+          "At 17°C, cold shock is minimal for most swimmers, allowing relaxed, immediate immersion.",
+          "Spiny dogfish sharks congregate in shallow temperate bays once spring waters warm to 17°C."
+        ],
+        "18": [
+          "18°C (64.4°F) is the threshold above which wetsuits become optional for nearly all recreational ocean swimmers.",
+          "Summer sea temperatures off Cornwall, southern Brittany, and Sydney in spring sit right around 18°C.",
+          "At 18°C, seawater conducts sound at approximately 1,516 meters per second.",
+          "World Health Organization housing guidelines cite 18°C as the minimum safe indoor room temperature for healthy adults.",
+          "At 18°C, pure liquid water has a dynamic viscosity of 1.053 millipascal-seconds.",
+          "Kelp bass and Garibaldi damselfish thrive in southern California kelp forests averaging 16°C to 19°C.",
+          "Silkworm eggs hatch reliably in sericulture rooms held at 18°C to 24°C.",
+          "At 18°C, saturated air contains 15.4 grams of water vapor per cubic meter.",
+          "Surfers in 18°C water typically wear a 2 mm spring suit or boardshorts with a neoprene top.",
+          "Red-eared slider turtles begin basking on logs in spring once pond water warms to 18°C."
+        ],
+        "19": [
+          "19°C is a common early-summer Mediterranean temperature and peak summer temperature in the southern North Sea.",
+          "At 19°C, bare skin loses heat slowly enough that moderate swimming generates more metabolic heat than the water removes.",
+          "Monarch butterflies roost in dense eucalyptus groves along the California coast when winter daytime temperatures hover near 19°C.",
+          "At 19°C, dissolved oxygen in seawater measures about 7.5 milligrams per liter.",
+          "Commercial greenhouses grow crisp butterhead lettuce at an ideal daytime temperature of 18°C to 20°C.",
+          "Loggerhead sea turtles forage in temperate Atlantic and Mediterranean waters once sea temperatures reach 19°C.",
+          "At 19°C, pure water has a density of 0.9984 grams per cubic centimeter.",
+          "Triathlon rules allow optional wetsuits in 19°C water for age-group athletes, though elite athletes often swim without them.",
+          "Fireflies begin flashing at dusk in early summer once evening temperatures remain above 18°C to 19°C.",
+          "At 19°C, a 1.5 mm neoprene top protects against windchill during long surf or kitesurfing sessions."
+        ],
+        "20": [
+          "20°C (68°F) is the standard scientific definition of room temperature used in chemistry and physics reference tables.",
+          "At 20°C, pure liquid water has a dynamic viscosity of almost exactly 1.002 millipascal-seconds (1 centipoise).",
+          "20°C is the classic summer ocean temperature off Lisbon, southern California, and Bondi Beach in spring.",
+          "At 20°C, sound travels through air at 343 meters per second and through seawater at roughly 1,521 meters per second.",
+          "Most people can swim comfortably in 20°C water in regular swimwear with zero thermal protection.",
+          "Standard laboratory volumetric glassware is calibrated to deliver exact volumes at 20°C.",
+          "At 20°C, saturated air holds 17.3 grams of water vapor per cubic meter.",
+          "Manta rays frequently visit coastal cleaning stations in subtropical currents ranging from 20°C to 26°C.",
+          "Garden basil stops growing vigorously if night temperatures dip consistently below 20°C.",
+          "At 20°C, pure water has a refractive index of 1.3330."
+        ],
+        "21": [
+          "21°C (69.8°F) is the upper limit below which World Aquatics allows wetsuits in elite open-water races; above 20°C to 21°C, wetsuits are banned for pros.",
+          "Summer sea temperatures along the French Riviera, Costa Brava, and New Jersey shore frequently sit at 21°C.",
+          "At 21°C, human skin temperature (normally 33°C) cools gently without triggering shivering during continuous movement.",
+          "Blue crabs in Chesapeake Bay shed their shells and grow rapidly once water temperatures reach 21°C.",
+          "At 21°C, pure water has a density of 0.9980 grams per cubic centimeter.",
+          "Indoor museum galleries maintain 21°C to prevent wood panels and canvas paintings from warping.",
+          "Hammerhead sharks aggregate around seamounts in the eastern Pacific in currents averaging 21°C to 25°C.",
+          "At 21°C, a rash guard is worn mainly for UV sun protection and board-rash prevention rather than warmth.",
+          "Honeycomb beeswax remains firm and structurally strong at 21°C, softening only above 40°C and melting at 62°C.",
+          "At 21°C, dissolved oxygen in seawater is roughly 7.2 milligrams per liter."
+        ],
+        "22": [
+          "22°C (71.6°F) is the classic midsummer sea temperature in Barcelona, Nice, Sydney, and Cape Cod.",
+          "At 22°C, recreational swimmers can stay in the ocean for over an hour comfortably without a wetsuit.",
+          "World Aquatics bans wetsuits in elite open-water marathon swims whenever water temperature reaches 20°C to 22°C or higher to prevent overheating.",
+          "At 22°C, seawater conducts sound at roughly 1,527 meters per second.",
+          "Crickets chirp at roughly 140 chirps per minute at 22°C, following Dolbear's law relating chirp rate to temperature.",
+          "Bottlenose dolphins and spinner dolphins thrive in coastal subtropical waters averaging 22°C to 28°C.",
+          "At 22°C, saturated air holds 19.4 grams of water vapor per cubic meter.",
+          "Sea anemones and stony corals on subtropical rocky reefs expand their tentacles actively at 22°C.",
+          "At 22°C, pure water has a surface tension of 72.4 millinewtons per meter.",
+          "Standard scuba diving in 22°C water typically requires only a thin 3 mm shorty or dive skin for abrasion protection."
+        ],
+        "23": [
+          "23°C (73.4°F) feels brisk on initial entry for only a few seconds before becoming effortlessly comfortable for swimming.",
+          "Late-summer water temperatures in the western Mediterranean, Azores, and Outer Banks regularly reach 23°C.",
+          "At 23°C, coconut oil sits just 1°C below its 24°C melting point, turning soft and translucent in a jar.",
+          "Reef-building corals begin flourishing across subtropical latitudes once minimum winter sea temperatures stay above 18°C to 23°C.",
+          "At 23°C, pure water has a density of 0.9975 grams per cubic centimeter.",
+          "Green sea turtles graze on shallow seagrass meadows in 23°C to 28°C coastal lagoons.",
+          "At 23°C, water vapor saturation pressure is 2.81 kilopascals.",
+          "Commercial bakeries target a final mixed bread dough temperature of 23°C to 25°C for predictable yeast fermentation.",
+          "Flying fish launch out of warm 23°C ocean swells, gliding up to 200 meters on pectoral fins.",
+          "At 23°C, hypothermia is virtually impossible during normal daytime recreational swimming."
+        ],
+        "24": [
+          "24°C (75.2°F) is the exact melting point of unrefined coconut oil, turning it from a white solid into a clear liquid.",
+          "24°C is the typical summer sea temperature in Mallorca, Sardinia, Gold Coast Australia, and southern Florida in spring.",
+          "At 24°C, seawater conducts sound at roughly 1,532 meters per second.",
+          "West Indian manatees migrate toward warm springs and power-plant outflows whenever coastal water drops below 20°C to 24°C.",
+          "At 24°C, saturated air holds 21.8 grams of water vapor per cubic meter.",
+          "Spiny boxfish and parrotfish graze algae continuously on warm 24°C rocky and coral reefs.",
+          "At 24°C, pure water has a dynamic viscosity of 0.911 millipascal-seconds.",
+          "Standard Olympic competition swimming pools are maintained slightly warmer than 24°C, between 25°C and 28°C.",
+          "Tiger sharks patrol tropical and warm-temperate coastlines most heavily in water temperatures of 24°C to 29°C.",
+          "At 24°C, wearing a full wetsuit during vigorous swimming can actually cause mild heat buildup."
+        ],
+        "25": [
+          "25°C (77°F) is the standard thermodynamic reference temperature (298.15 K) used in chemistry and electrochemistry.",
+          "25°C is the lower bound of World Aquatics regulation temperature (25°C to 28°C) for Olympic indoor swimming pools.",
+          "At 25°C, pure water has a neutral pH of exactly 7.00, where hydrogen and hydroxide ion concentrations both equal 10^-7 mol/L.",
+          "Summer sea temperatures in Sicily, Crete, Ibiza, and Hawaii regularly hover right around 25°C.",
+          "At 25°C, pure water has a density of 0.9970 grams per cubic centimeter and a viscosity of 0.890 millipascal-seconds.",
+          "No wetsuit is needed at 25°C; swimwear and UV sun protection are all you need for hours in the water.",
+          "At 25°C, saturated air holds 23.0 grams of water vapor per cubic meter.",
+          "Clownfish and host sea anemones thrive in Indo-Pacific lagoons averaging 25°C to 29°C.",
+          "At 25°C, sound travels through seawater at approximately 1,534 meters per second.",
+          "Tropical hurricanes and typhoons begin organizing when deep ocean surface waters exceed 26°C, just above 25°C."
+        ],
+        "26": [
+          "26°C (78.8°F) is the widely recognized sea surface temperature threshold required to fuel tropical cyclone and hurricane formation.",
+          "26°C is the classic year-round water temperature in Oahu, Canary Islands in autumn, and the eastern Mediterranean in August.",
+          "At 26°C, swimming feels effortless with zero initial chill, allowing immediate immersion.",
+          "Whale sharks gather in plankton-rich tropical waters around 26°C to 29°C off Mexico, Western Australia, and the Philippines.",
+          "At 26°C, dissolved oxygen in seawater measures about 6.6 milligrams per liter.",
+          "Coral polyps calcify calcium carbonate skeletons fastest in clear, sunlit tropical seas between 26°C and 28°C.",
+          "At 26°C, water vapor saturation pressure reaches 3.36 kilopascals.",
+          "Hydrotherapy and leisure swimming pools often heat water to 26°C to 28°C for relaxed recreational floating.",
+          "At 26°C, pure water has a surface tension of 71.8 millinewtons per meter.",
+          "Bioluminescent dinoflagellates bloom brightly in warm 26°C tropical bays when disturbed at night."
+        ],
+        "27": [
+          "27°C (80.6°F) sits right inside the 25°C to 28°C Olympic indoor pool temperature specification.",
+          "Caribbean Sea, Bahamas, and Great Barrier Reef waters regularly sit at 27°C across much of the year.",
+          "At 27°C, seawater conducts sound at roughly 1,539 meters per second.",
+          "Hawksbill sea turtles feed on reef sponges throughout tropical Atlantic and Pacific waters averaging 27°C to 29°C.",
+          "At 27°C, saturated air contains 25.8 grams of water vapor per cubic meter.",
+          "Cocoa butter begins softening noticeably above 27°C before melting completely near 34°C.",
+          "At 27°C, pure water has a density of 0.9965 grams per cubic centimeter.",
+          "Box jellyfish and tropical stingers become more common in northern Australian waters once sea temperatures exceed 27°C.",
+          "At 27°C, vigorous sprint swimming produces noticeable body warmth because the temperature gradient from 37°C skin is narrow.",
+          "Tropical seagrass beds produce up to 10 liters of oxygen per square meter per day in sunlit 27°C coastal waters."
+        ],
+        "28": [
+          "28°C (82.4°F) is the upper limit of World Aquatics regulation temperature for Olympic competition swimming pools.",
+          "28°C is the typical sea temperature in Bali, Phuket, Maldives, and Cancun.",
+          "At 28°C, warm tropical surface water evaporates rapidly, feeding trade-wind cumulus clouds and afternoon showers.",
+          "Giant clams (Tridacna gigas) rely on symbiotic zooxanthellae algae inside their mantles in sunlit 28°C coral lagoons.",
+          "At 28°C, pure water has a dynamic viscosity of 0.832 millipascal-seconds.",
+          "Sea snakes inhabit warm Indo-Pacific coastal reefs between 26°C and 30°C, surfacing periodically to breathe.",
+          "At 28°C, saturated air holds 27.2 grams of water vapor per cubic meter.",
+          "Gallium metal remains solid at 28°C, just 1.8°C below its famous 29.76°C melting point.",
+          "At 28°C, seawater has a density of roughly 1,022.4 kilograms per cubic meter, making swimmers more buoyant than in cold polar seas.",
+          "Mantis shrimp strike prey with raptorial appendages in warm 28°C reef burrows at speeds exceeding 23 meters per second."
+        ],
+        "29": [
+          "29°C (84.2°F) is just 0.76°C below the melting point of pure gallium metal (29.76°C).",
+          "Summer sea temperatures in the Florida Keys, South China Sea, and Red Sea frequently reach 29°C.",
+          "At 29°C, water feels noticeably warm on entry, with minimal cooling effect during slow recreational swimming.",
+          "Mass coral bleaching stress begins when sea surface temperatures stay 1°C above the normal summer maximum, often around 29°C to 30°C.",
+          "At 29°C, seawater conducts sound at roughly 1,543 meters per second.",
+          "Dugongs graze on warm coastal seagrass flats in northern Australia and the Red Sea at 28°C to 30°C.",
+          "At 29°C, saturated air holds 28.8 grams of water vapor per cubic meter.",
+          "Tropical mangrove forests thrive along sheltered 29°C shorelines, filtering salt through specialized root membranes.",
+          "At 29°C, pure water has a density of 0.9959 grams per cubic centimeter.",
+          "World Aquatics sets 31°C as the maximum safe upper temperature for open-water marathon races, only 2°C above 29°C."
+        ],
+        "30": [
+          "30°C equals exactly 86°F, another exact integer pairing on the Celsius and Fahrenheit scales.",
+          "Gallium metal melts into a silvery liquid puddle right at 29.76°C, turning fluid at 30°C.",
+          "Summer sea temperatures in the Gulf of Thailand, Singapore Strait, and shallow Caribbean bays commonly hit 30°C.",
+          "At 30°C, pure liquid water has a dynamic viscosity of 0.797 millipascal-seconds and a density of 0.9956 grams per cubic centimeter.",
+          "At 30°C, saturated air holds 30.4 grams of water vapor per cubic meter, more than six times as much as at 0°C.",
+          "Prolonged sea surface temperatures above 30°C trigger severe thermal stress and bleaching in shallow coral reefs.",
+          "At 30°C, dissolved oxygen in seawater drops to about 6.1 milligrams per liter.",
+          "Baby sea turtles emerging from warm 30°C beach sand nests skew strongly female due to temperature-dependent sex determination.",
+          "At 30°C, competitive distance swimmers risk mild hyperthermia if swimming hard for more than an hour.",
+          "Commercial yogurt cultures ferment milk rapidly when incubated between 30°C and 43°C."
+        ],
+        "31": [
+          "31°C (87.8°F) is the absolute maximum water temperature allowed by World Aquatics for official open-water swimming competitions.",
+          "Late-summer waters in the Persian Gulf, southern Red Sea, and shallow Florida Bay regularly reach 31°C.",
+          "At 31°C, water temperature is within 2°C of normal human skin temperature (33°C), providing very little convective cooling.",
+          "At 31°C, seawater conducts sound at roughly 1,547 meters per second.",
+          "Saltwater crocodiles in northern Australia and Southeast Asia bask in tidal estuaries averaging 28°C to 32°C.",
+          "At 31°C, water vapor saturation pressure reaches 4.49 kilopascals.",
+          "Upside-down jellyfish (Cassiopea) rest on shallow 31°C mangrove bottoms, farming photosynthetic algae in their tentacles.",
+          "At 31°C, pure water has a surface tension of 71.0 millinewtons per meter.",
+          "Warm-water recreational therapy pools typically maintain water between 31°C and 34°C to relax muscles.",
+          "At 31°C, staying hydrated during long ocean swims matters because the body still sweats underwater."
+        ],
+        "32": [
+          "32°C (89.6°F) sits right at normal human superficial skin temperature (roughly 32°C to 33°C), feeling almost thermally neutral.",
+          "Shallow lagoons in the Persian Gulf, Gulf of Mexico, and northern Red Sea hit 32°C during peak summer heatwaves.",
+          "At 32°C, saturated air contains 33.8 grams of water vapor per cubic meter.",
+          "High-salinity Red Sea and Persian Gulf waters at 32°C can reach 40 parts per thousand salinity due to intense evaporation.",
+          "At 32°C, pure water has a density of 0.9950 grams per cubic centimeter.",
+          "Milk chocolate begins softening rapidly at 32°C, just below its 34°C cocoa butter melting range.",
+          "At 32°C, dissolved oxygen in seawater falls below 6.0 milligrams per liter, pushing reef fish toward deeper, cooler channels.",
+          "Bull sharks are one of the few large shark species that tolerate very warm 32°C coastal lagoons and estuaries.",
+          "At 32°C, seawater conducts sound at roughly 1,549 meters per second.",
+          "Infant swim lessons commonly heat indoor teaching pools to 32°C so babies stay warm without active swimming."
+        ],
+        "33": [
+          "33°C (91.4°F) matches average human skin temperature, making the water feel neither cool nor hot upon entry.",
+          "Peak August sea surface temperatures in Kuwait Bay and the southern Persian Gulf reach 33°C to 35°C.",
+          "At 33°C, intense athletic exertion in water can raise core body temperature because sweat cannot evaporate underwater.",
+          "At 33°C, saturated air holds 35.6 grams of water vapor per cubic meter.",
+          "Cocoa butter melts sharply between 33°C and 35°C, which is why fine chocolate melts smoothly on the human tongue.",
+          "At 33°C, pure water has a dynamic viscosity of 0.749 millipascal-seconds.",
+          "Heat-tolerant corals in the Persian Gulf have evolved symbiotic algae strains capable of surviving 33°C summer peaks.",
+          "At 33°C, water vapor saturation pressure reaches 5.03 kilopascals.",
+          "Bakers proof active dry yeast in warm water between 33°C and 38°C for rapid fermentation.",
+          "At 33°C, pure water has a refractive index of 1.3316."
+        ],
+        "34": [
+          "34°C (93.2°F) is the exact melting point of tempered Form V cocoa butter, giving chocolate its melt-in-your-mouth texture.",
+          "Shallow tidal flats in the Persian Gulf and Arabian Sea occasionally warm to 34°C in late summer.",
+          "At 34°C, water feels distinctly bath-warm, offering virtually no cooling during vigorous exercise.",
+          "At 34°C, saturated air holds 37.6 grams of water vapor per cubic meter.",
+          "Pure water at 34°C has a density of 0.9943 grams per cubic centimeter.",
+          "Aquatic physical therapy pools heat water to 33°C to 34°C to ease joint stiffness and muscle spasms.",
+          "At 34°C, seawater conducts sound at roughly 1,552 meters per second.",
+          "Desert pupfish in geothermal springs such as Devils Hole survive in oxygen-poor waters hovering near 33°C to 34°C.",
+          "At 34°C, pure water has a surface tension of 70.5 millinewtons per meter.",
+          "Standard domestic warm-water wash cycles on laundry machines run near 30°C to 34°C."
+        ],
+        "35": [
+          "35°C (95°F) is the classic wet-bulb temperature limit above which healthy humans cannot cool themselves by sweating in humid air.",
+          "35°C is the internal brood-nest temperature that honeybees maintain year-round by fanning wings or vibrating flight muscles.",
+          "Record open-ocean surface temperatures in the Persian Gulf and Florida Keys tidal bays have reached 35°C to 38°C.",
+          "At 35°C, pure water has a dynamic viscosity of 0.719 millipascal-seconds, less than half its viscosity at 0°C.",
+          "At 35°C, saturated air holds 39.6 grams of water vapor per cubic meter.",
+          "Normal human core body temperature sits at 37°C, just 2°C above 35°C.",
+          "At 35°C, pure water has a density of 0.9940 grams per cubic centimeter.",
+          "Geothermal hot-spring pools around 35°C to 38°C are considered warm-soak temperatures rather than lap-swimming temperatures.",
+          "At 35°C, dissolved oxygen in seawater drops to roughly 5.6 milligrams per liter.",
+          "Enzymes in human digestion and cellular metabolism operate near peak efficiency between 35°C and 37°C."
+        ]
+      };
+
+      /* =====================================================================
+       * 3. APPLICATION STATE & DOM REFERENCES
+       * ===================================================================== */
+      var state = {
+        unit: "C",
+        userLoc: { lat: CENTRAL_LONDON.lat, lon: CENTRAL_LONDON.lon, label: CENTRAL_LONDON.label },
+        beach: null,
+        distInfo: null,
+        tempC: null,
+        waveM: null,
+        hourly: [],
+        factIndex: 0,
+        mapInstance: null,
+        mapLayerGroup: null,
+        tileLayer: null
+      };
+
+      var el = {
+        body: document.body,
+        locationSubtitle: document.getElementById("locationSubtitle"),
+        unitToggleBtn: document.getElementById("unitToggleBtn"),
+        unitC: document.getElementById("unitC"),
+        unitF: document.getElementById("unitF"),
+        searchInput: document.getElementById("searchInput"),
+        searchDropdown: document.getElementById("searchDropdown"),
+        relocateBtn: document.getElementById("relocateBtn"),
+        errorBanner: document.getElementById("errorBanner"),
+        errorText: document.getElementById("errorText"),
+        retryBtn: document.getElementById("retryBtn"),
+        dismissErrorBtn: document.getElementById("dismissErrorBtn"),
+        loadingOverlay: document.getElementById("loadingOverlay"),
+        loadingText: document.getElementById("loadingText"),
+        beachName: document.getElementById("beachName"),
+        verdictBadge: document.getElementById("verdictBadge"),
+        tempValue: document.getElementById("tempValue"),
+        tempUnit: document.getElementById("tempUnit"),
+        waveHeight: document.getElementById("waveHeight"),
+        updatedTime: document.getElementById("updatedTime"),
+        factLabel: document.getElementById("factLabel"),
+        nextFactBtn: document.getElementById("nextFactBtn"),
+        factText: document.getElementById("factText"),
+        wetsuitValue: document.getElementById("wetsuitValue"),
+        wetsuitNote: document.getElementById("wetsuitNote"),
+        hypothermiaValue: document.getElementById("hypothermiaValue"),
+        hypothermiaNote: document.getElementById("hypothermiaNote"),
+        mapContainer: document.getElementById("map"),
+        mapFallback: document.getElementById("mapFallback"),
+        mapUserLabel: document.getElementById("mapUserLabel"),
+        mapBeachLabel: document.getElementById("mapBeachLabel"),
+        mapDistanceBadge: document.getElementById("mapDistanceBadge"),
+        forecastStrip: document.getElementById("forecastStrip")
+      };
+
+      /* =====================================================================
+       * 4. UTILITY FUNCTIONS (CONVERSION, HAVERSINE, BEARING, SURVIVAL DATA)
+       * ===================================================================== */
+      function toDisplayTemp(c) {
+        if (c === null || c === undefined || isNaN(c)) return "--";
+        if (state.unit === "F") {
+          return Math.round((c * 9) / 5 + 32);
+        }
+        return Number(c).toFixed(1);
+      }
+
+      function toShortDisplayTemp(c) {
+        if (c === null || c === undefined || isNaN(c)) return "--";
+        if (state.unit === "F") {
+          return Math.round((c * 9) / 5 + 32) + "°";
+        }
+        return Math.round(c) + "°";
+      }
+
+      function haversineKm(lat1, lon1, lat2, lon2) {
+        var toRad = Math.PI / 180;
+        var dLat = (lat2 - lat1) * toRad;
+        var dLon = (lon2 - lon1) * toRad;
+        var a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return 6371 * c;
+      }
+
+      function compassBearing(lat1, lon1, lat2, lon2) {
+        var toRad = Math.PI / 180;
+        var toDeg = 180 / Math.PI;
+        var phi1 = lat1 * toRad;
+        var phi2 = lat2 * toRad;
+        var dLambda = (lon2 - lon1) * toRad;
+        var y = Math.sin(dLambda) * Math.cos(phi2);
+        var x =
+          Math.cos(phi1) * Math.sin(phi2) -
+          Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
+        var brng = (Math.atan2(y, x) * toDeg + 360) % 360;
+        var dirs = [
+          "N", "NNE", "NE", "ENE",
+          "E", "ESE", "SE", "SSE",
+          "S", "SSW", "SW", "WSW",
+          "W", "WNW", "NW", "NNW"
+        ];
+        var idx = Math.round(brng / 22.5) % 16;
+        return dirs[idx];
+      }
+
+      function findNearestBeach(lat, lon) {
+        var bestBeach = BEACHES[0];
+        var bestKm = Infinity;
+        for (var i = 0; i < BEACHES.length; i++) {
+          var b = BEACHES[i];
+          var d = haversineKm(lat, lon, b.lat, b.lon);
+          if (d < bestKm) {
+            bestKm = d;
+            bestBeach = b;
+          }
+        }
+        var kmRounded = Math.round(bestKm);
+        var miRounded = Math.round(bestKm * 0.621371);
+        var bearing = compassBearing(lat, lon, bestBeach.lat, bestBeach.lon);
+        return {
+          beach: bestBeach,
+          km: kmRounded,
+          mi: miRounded,
+          bearing: bearing
+        };
+      }
+
+      function getFactsForTemp(tempC) {
+        var rounded = Math.round(tempC);
+        if (rounded < -2) rounded = -2;
+        if (rounded > 35) rounded = 35;
+        var key = String(rounded);
+        return {
+          degreeC: rounded,
+          facts: TEMP_FACTS[key] || TEMP_FACTS["15"]
+        };
+      }
+
+      function getSurvivalGuidance(tempC) {
+        if (tempC < 5) {
+          return {
+            theme: "theme-arctic",
+            verdict: "ICE SWIM ONLY",
+            badgeClass: "bg-blue-500/30 text-blue-100 border-blue-400/40",
+            wetsuit: "7 mm + Hood, Gloves & Boots",
+            wetsuitNote: "Drysuit or full cold-water neoprene required",
+            hypo: "15 – 30 mins",
+            hypoNote: "Immediate cold-shock gasp risk on entry"
+          };
+        }
+        if (tempC < 10) {
+          return {
+            theme: "theme-cold",
+            verdict: "WETSUIT NEEDED",
+            badgeClass: "bg-indigo-500/30 text-indigo-100 border-indigo-400/40",
+            wetsuit: "5/4 mm Full + Boots",
+            wetsuitNote: "Hood and gloves recommended for long sessions",
+            hypo: "30 – 60 mins",
+            hypoNote: "Rapid loss of finger dexterity without neoprene"
+          };
+        }
+        if (tempC < 14) {
+          return {
+            theme: "theme-cool",
+            verdict: "BRISK • SUIT ADVISED",
+            badgeClass: "bg-cyan-500/30 text-cyan-100 border-cyan-400/40",
+            wetsuit: "4/3 mm Full Steamer",
+            wetsuitNote: "Skins possible for acclimatized short dips",
+            hypo: "1 – 2 hours",
+            hypoNote: "Control breathing during first 60 seconds"
+          };
+        }
+        if (tempC < 18) {
+          return {
+            theme: "theme-mild",
+            verdict: "SWIMMABLE • COOL",
+            badgeClass: "bg-teal-500/30 text-teal-100 border-teal-400/40",
+            wetsuit: "3/2 mm or 2 mm Spring",
+            wetsuitNote: "Optional for active 20–40 min swims",
+            hypo: "2 – 4 hours",
+            hypoNote: "Refreshing after brief initial chill"
+          };
+        }
+        if (tempC < 23) {
+          return {
+            theme: "theme-warm",
+            verdict: "NO WETSUIT NEEDED",
+            badgeClass: "bg-sky-500/30 text-sky-100 border-sky-400/40",
+            wetsuit: "Swimwear / Rash Guard",
+            wetsuitNote: "Optional 2 mm top for multi-hour surfing",
+            hypo: "4 – 8+ hours",
+            hypoNote: "Comfortable thermal balance for swimming"
+          };
+        }
+        return {
+          theme: "theme-tropical",
+          verdict: "WARM • NO SUIT",
+          badgeClass: "bg-amber-500/30 text-amber-100 border-amber-400/40",
+          wetsuit: "Swimwear + UV Protection",
+          wetsuitNote: "Full wetsuits may cause overheating",
+          hypo: "No hypothermia risk",
+          hypoNote: "Stay hydrated in warm tropical seas"
+        };
+      }
+
+      /* =====================================================================
+       * 5. GPS LOCATION WITH STRICT 4-SECOND FALLBACK TO CENTRAL LONDON
+       * ===================================================================== */
+      function getLocationWithFallback() {
+        return new Promise(function (resolve) {
+          if (!navigator.geolocation) {
+            resolve({
+              lat: CENTRAL_LONDON.lat,
+              lon: CENTRAL_LONDON.lon,
+              label: CENTRAL_LONDON.label
+            });
+            return;
+          }
+
+          var settled = false;
+          var timerId = setTimeout(function () {
+            if (!settled) {
+              settled = true;
+              resolve({
+                lat: CENTRAL_LONDON.lat,
+                lon: CENTRAL_LONDON.lon,
+                label: CENTRAL_LONDON.label
+              });
+            }
+          }, 4000);
+
+          try {
+            navigator.geolocation.getCurrentPosition(
+              function (pos) {
+                if (!settled) {
+                  settled = true;
+                  clearTimeout(timerId);
+                  resolve({
+                    lat: pos.coords.latitude,
+                    lon: pos.coords.longitude,
+                    label: "Your GPS Location"
+                  });
+                }
+              },
+              function () {
+                if (!settled) {
+                  settled = true;
+                  clearTimeout(timerId);
+                  resolve({
+                    lat: CENTRAL_LONDON.lat,
+                    lon: CENTRAL_LONDON.lon,
+                    label: CENTRAL_LONDON.label
+                  });
+                }
+              },
+              {
+                enableHighAccuracy: false,
+                timeout: 3800,
+                maximumAge: 300000
+              }
+            );
+          } catch (e) {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timerId);
+              resolve({
+                lat: CENTRAL_LONDON.lat,
+                lon: CENTRAL_LONDON.lon,
+                label: CENTRAL_LONDON.label
+              });
+            }
+          }
+        });
+      }
+
+      /* =====================================================================
+       * 6. OPEN-METEO MARINE DATA FETCH WITH OFFSHORE BATCHED FALLBACK
+       * ===================================================================== */
+      function fetchWithTimeout(url, ms) {
+        var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+        var timer = controller
+          ? setTimeout(function () {
+              controller.abort();
+            }, ms)
+          : null;
+
+        return fetch(url, controller ? { signal: controller.signal } : {})
+          .then(function (res) {
+            if (timer) clearTimeout(timer);
+            if (!res.ok) {
+              throw new Error("HTTP " + res.status);
+            }
+            return res.json();
+          })
+          .catch(function (err) {
+            if (timer) clearTimeout(timer);
+            throw err;
+          });
+      }
+
+      function extractMarineReading(record) {
+        if (!record) return null;
+        var temp =
+          record.current && typeof record.current.sea_surface_temperature === "number"
+            ? record.current.sea_surface_temperature
+            : null;
+        var wave =
+          record.current && typeof record.current.wave_height === "number"
+            ? record.current.wave_height
+            : null;
+
+        var hourlyList = [];
+        if (
+          record.hourly &&
+          Array.isArray(record.hourly.time) &&
+          Array.isArray(record.hourly.sea_surface_temperature)
+        ) {
+          var nowMs = Date.now();
+          for (var i = 0; i < record.hourly.time.length; i++) {
+            var tStr = record.hourly.time[i];
+            var hTemp = record.hourly.sea_surface_temperature[i];
+            var hWave = Array.isArray(record.hourly.wave_height)
+              ? record.hourly.wave_height[i]
+              : null;
+            if (typeof hTemp === "number") {
+              var parsedMs = Date.parse(tStr);
+              if (temp === null && !isNaN(parsedMs) && Math.abs(parsedMs - nowMs) < 5400000) {
+                temp = hTemp;
+                if (wave === null && typeof hWave === "number") wave = hWave;
+              }
+              if (isNaN(parsedMs) || parsedMs >= nowMs - 3600000) {
+                hourlyList.push({
+                  time: tStr,
+                  tempC: hTemp,
+                  waveM: typeof hWave === "number" ? hWave : 0.4
+                });
+              }
+            }
+          }
+        }
+
+        if (temp === null) return null;
+        return {
+          tempC: temp,
+          waveM: wave !== null ? wave : 0.5,
+          hourly: hourlyList.slice(0, 24)
+        };
+      }
+
+      function fetchMarineForBeach(beach) {
+        var primaryUrl =
+          "https://marine-api.open-meteo.com/v1/marine?latitude=" +
+          beach.lat.toFixed(4) +
+          "&longitude=" +
+          beach.lon.toFixed(4) +
+          "&current=sea_surface_temperature,wave_height&hourly=sea_surface_temperature,wave_height&forecast_days=2&cell_selection=sea&timezone=auto";
+
+        return fetchWithTimeout(primaryUrl, 8000)
+          .then(function (data) {
+            var direct = extractMarineReading(data);
+            if (direct) {
+              direct.sourceNote = "Open-Meteo Marine • Live";
+              return direct;
+            }
+
+            /* Batched 8-point offshore coordinate offset fallback */
+            var offsets = [
+              [0.12, 0],
+              [-0.12, 0],
+              [0, 0.12],
+              [0, -0.12],
+              [0.28, 0.28],
+              [0.28, -0.28],
+              [-0.28, 0.28],
+              [-0.28, -0.28]
+            ];
+            var lats = [];
+            var lons = [];
+            for (var i = 0; i < offsets.length; i++) {
+              lats.push((beach.lat + offsets[i][0]).toFixed(4));
+              lons.push((beach.lon + offsets[i][1]).toFixed(4));
+            }
+
+            var batchUrl =
+              "https://marine-api.open-meteo.com/v1/marine?latitude=" +
+              lats.join(",") +
+              "&longitude=" +
+              lons.join(",") +
+              "&current=sea_surface_temperature,wave_height&hourly=sea_surface_temperature,wave_height&forecast_days=2&cell_selection=sea&timezone=auto";
+
+            return fetchWithTimeout(batchUrl, 8000).then(function (batchData) {
+              var arr = Array.isArray(batchData) ? batchData : [batchData];
+              var bestReading = null;
+              var bestDist = Infinity;
+
+              for (var j = 0; j < arr.length; j++) {
+                var parsed = extractMarineReading(arr[j]);
+                if (parsed) {
+                  var rLat = typeof arr[j].latitude === "number" ? arr[j].latitude : beach.lat;
+                  var rLon = typeof arr[j].longitude === "number" ? arr[j].longitude : beach.lon;
+                  var d = haversineKm(beach.lat, beach.lon, rLat, rLon);
+                  if (d < bestDist) {
+                    bestDist = d;
+                    bestReading = parsed;
+                  }
+                }
+              }
+
+              if (bestReading) {
+                bestReading.sourceNote = "Open-Meteo Marine • Offshore";
+                return bestReading;
+              }
+              throw new Error("No offshore marine cell available");
+            });
+          });
+      }
+
+      function buildClimatologicalFallback(beach) {
+        var absLat = Math.abs(beach.lat);
+        var month = new Date().getMonth();
+        var isNorth = beach.lat >= 0;
+        var seasonalOffset = Math.cos(((month - (isNorth ? 7 : 1)) / 12) * 2 * Math.PI) * 3.5;
+        var baseTemp = 28 - absLat * 0.42 + seasonalOffset;
+        if (baseTemp < 0) baseTemp = 0.5;
+        if (baseTemp > 31) baseTemp = 31;
+        baseTemp = Math.round(baseTemp * 10) / 10;
+
+        var hourly = [];
+        var now = new Date();
+        for (var h = 0; h < 24; h++) {
+          var dt = new Date(now.getTime() + h * 3600000);
+          var diurnal = Math.sin((h / 24) * 2 * Math.PI) * 0.4;
+          hourly.push({
+            time: dt.toISOString(),
+            tempC: Math.round((baseTemp + diurnal) * 10) / 10,
+            waveM: 0.7
+          });
+        }
+        return {
+          tempC: baseTemp,
+          waveM: 0.7,
+          hourly: hourly,
+          sourceNote: "Seasonal Coastal Estimate",
+          isFallback: true
+        };
+      }
+
+      /* =====================================================================
+       * 7. UI RENDERING (HERO, FACTS, SURVIVAL, FORECAST, LEAFLET MAP)
+       * ===================================================================== */
+      function setLoading(isLoading, message) {
+        if (message) {
+          el.loadingText.textContent = message;
+        }
+        if (isLoading) {
+          el.loadingOverlay.classList.remove("hidden");
+        } else {
+          el.loadingOverlay.classList.add("hidden");
+        }
+      }
+
+      function showBanner(msg) {
+        el.errorText.textContent = msg;
+        el.errorBanner.classList.remove("hidden");
+      }
+
+      function hideBanner() {
+        el.errorBanner.classList.add("hidden");
+      }
+
+      function renderFact() {
+        if (state.tempC === null) return;
+        var bundle = getFactsForTemp(state.tempC);
+        var total = bundle.facts.length;
+        var idx = ((state.factIndex % total) + total) % total;
+        var degDisplay =
+          state.unit === "F"
+            ? Math.round((bundle.degreeC * 9) / 5 + 32) + "°F (" + bundle.degreeC + "°C)"
+            : bundle.degreeC + "°C";
+
+        el.factLabel.textContent = degDisplay + " • Fact " + (idx + 1) + " of " + total;
+        el.factText.textContent = bundle.facts[idx];
+      }
+
+      function renderForecast() {
+        if (!state.hourly || state.hourly.length === 0) {
+          el.forecastStrip.innerHTML =
+            "<div class=\"text-xs text-slate-400 py-2\">Hourly forecast unavailable.</div>";
+          return;
+        }
+
+        var html = "";
+        for (var i = 0; i < state.hourly.length; i++) {
+          var item = state.hourly[i];
+          var label = "Now";
+          if (i > 0) {
+            var parts = String(item.time).split("T");
+            if (parts.length > 1) {
+              label = parts[1].slice(0, 5);
+            } else {
+              label = "+" + i + "h";
+            }
+          }
+
+          html +=
+            "<div class=\"shrink-0 w-[66px] rounded-2xl bg-white/[0.06] border border-white/10 py-2.5 px-2 flex flex-col items-center gap-1 text-center\">" +
+            "<span class=\"text-[11px] font-semibold text-slate-400\">" + label + "</span>" +
+            "<span class=\"text-sm font-extrabold text-white\">" + toShortDisplayTemp(item.tempC) + "</span>" +
+            "<span class=\"text-[10px] font-medium text-sky-300\">" + item.waveM.toFixed(1) + "m</span>" +
+            "</div>";
+        }
+        el.forecastStrip.innerHTML = html;
+      }
+
+      function renderAllData() {
+        if (!state.beach || state.tempC === null) return;
+
+        el.locationSubtitle.textContent = state.userLoc.label;
+        el.beachName.textContent = state.beach.name;
+
+        var guide = getSurvivalGuidance(state.tempC);
+        el.body.className = guide.theme + " text-slate-100 antialiased selection:bg-sky-400/30";
+        el.verdictBadge.textContent = guide.verdict;
+        el.verdictBadge.className =
+          "shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold tracking-wide uppercase border " +
+          guide.badgeClass;
+
+        el.tempValue.textContent = toDisplayTemp(state.tempC);
+        el.tempUnit.textContent = "°" + state.unit;
+        el.waveHeight.textContent = state.waveM.toFixed(1) + " m waves";
+
+        el.wetsuitValue.textContent = guide.wetsuit;
+        el.wetsuitNote.textContent = guide.wetsuitNote;
+        el.hypothermiaValue.textContent = guide.hypo;
+        el.hypothermiaNote.textContent = guide.hypoNote;
+
+        if (state.distInfo) {
+          el.mapUserLabel.textContent = state.userLoc.label;
+          el.mapBeachLabel.textContent = state.beach.name;
+          el.mapDistanceBadge.textContent =
+            state.distInfo.km + " km (" + state.distInfo.mi + " mi) " + state.distInfo.bearing;
+        }
+
+        renderFact();
+        renderForecast();
+      }
+
+      function renderMap(userLoc, beach) {
+        try {
+          if (typeof window.L === "undefined") {
+            el.mapFallback.classList.remove("hidden");
+            return;
+          }
+          el.mapFallback.classList.add("hidden");
+
+          if (!state.mapInstance) {
+            state.mapInstance = L.map("map", {
+              zoomControl: false,
+              attributionControl: true
+            });
+
+            var primaryTiles = L.tileLayer(
+              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+              {
+                attribution: "Tiles &copy; Esri",
+                maxZoom: 18
+              }
+            );
+
+            var switchedToOcean = false;
+            primaryTiles.on("tileerror", function () {
+              if (!switchedToOcean && state.mapInstance) {
+                switchedToOcean = true;
+                state.mapInstance.removeLayer(primaryTiles);
+                L.tileLayer(
+                  "https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}",
+                  {
+                    attribution: "Tiles &copy; Esri",
+                    maxZoom: 16
+                  }
+                ).addTo(state.mapInstance);
+              }
+            });
+
+            primaryTiles.addTo(state.mapInstance);
+            state.tileLayer = primaryTiles;
+            state.mapLayerGroup = L.layerGroup().addTo(state.mapInstance);
+          }
+
+          state.mapLayerGroup.clearLayers();
+
+          var userCoords = [userLoc.lat, userLoc.lon];
+          var beachCoords = [beach.lat, beach.lon];
+
+          var userIcon = L.divIcon({
+            className: "",
+            html: "<div class=\"user-pulse-marker\"><div class=\"user-pulse-ring\"></div><div class=\"user-pulse-dot\"></div></div>",
+            iconSize: [18, 18],
+            iconAnchor: [9, 9]
+          });
+
+          var beachIcon = L.divIcon({
+            className: "",
+            html:
+              "<div class=\"beach-pin-wrapper\">" +
+              "<svg width=\"26\" height=\"34\" viewBox=\"0 0 26 34\" fill=\"none\">" +
+              "<path d=\"M13 0C5.82 0 0 5.82 0 13C0 22.75 13 34 13 34C13 34 26 22.75 26 13C26 5.82 20.18 0 13 0Z\" fill=\"#14b8a6\"/>" +
+              "<circle cx=\"13\" cy=\"12.5\" r=\"5\" fill=\"#ffffff\"/>" +
+              "</svg></div>",
+            iconSize: [26, 34],
+            iconAnchor: [13, 34]
+          });
+
+          L.marker(userCoords, { icon: userIcon })
+            .bindTooltip(userLoc.label, {
+              permanent: true,
+              direction: "top",
+              offset: [0, -10],
+              className: "custom-map-label"
+            })
+            .addTo(state.mapLayerGroup);
+
+          L.marker(beachCoords, { icon: beachIcon })
+            .bindTooltip(beach.name, {
+              permanent: true,
+              direction: "top",
+              offset: [0, -34],
+              className: "custom-map-label"
+            })
+            .addTo(state.mapLayerGroup);
+
+          L.polyline([userCoords, beachCoords], {
+            color: "#38bdf8",
+            weight: 3,
+            opacity: 0.9,
+            dashArray: "7, 7"
+          }).addTo(state.mapLayerGroup);
+
+          var bounds = L.latLngBounds([userCoords, beachCoords]);
+          state.mapInstance.fitBounds(bounds, {
+            padding: [44, 44],
+            maxZoom: 12
+          });
+
+          setTimeout(function () {
+            if (state.mapInstance) state.mapInstance.invalidateSize();
+          }, 150);
+          setTimeout(function () {
+            if (state.mapInstance) state.mapInstance.invalidateSize();
+          }, 600);
+        } catch (mapErr) {
+          el.mapFallback.classList.remove("hidden");
+        }
+      }
+
+      /* =====================================================================
+       * 8. MAIN WORKFLOW CONTROLLER
+       * ===================================================================== */
+      function loadForCoordinates(loc) {
+        state.userLoc = loc;
+        hideBanner();
+        setLoading(true, "Finding nearest beach...");
+
+        var nearest = findNearestBeach(loc.lat, loc.lon);
+        state.beach = nearest.beach;
+        state.distInfo = nearest;
+
+        el.locationSubtitle.textContent = loc.label;
+        el.beachName.textContent = nearest.beach.name;
+        el.mapUserLabel.textContent = loc.label;
+        el.mapBeachLabel.textContent = nearest.beach.name;
+        el.mapDistanceBadge.textContent =
+          nearest.km + " km (" + nearest.mi + " mi) " + nearest.bearing;
+
+        setLoading(true, "Fetching sea temperature...");
+
+        return fetchMarineForBeach(nearest.beach)
+          .then(function (marine) {
+            state.tempC = marine.tempC;
+            state.waveM = marine.waveM;
+            state.hourly = marine.hourly;
+            state.factIndex = Math.floor(Math.random() * 10);
+            el.updatedTime.textContent = marine.sourceNote || "Open-Meteo Marine";
+            renderAllData();
+          })
+          .catch(function () {
+            var est = buildClimatologicalFallback(nearest.beach);
+            state.tempC = est.tempC;
+            state.waveM = est.waveM;
+            state.hourly = est.hourly;
+            state.factIndex = Math.floor(Math.random() * 10);
+            el.updatedTime.textContent = est.sourceNote;
+            renderAllData();
+            showBanner("Live marine feed busy — showing seasonal coastal estimate.");
+          })
+          .finally(function () {
+            setLoading(false);
+            renderMap(state.userLoc, state.beach);
+          });
+      }
+
+      function locateAndLoad() {
+        hideBanner();
+        setLoading(true, "Checking GPS location...");
+        getLocationWithFallback().then(function (loc) {
+          loadForCoordinates(loc);
+        });
+      }
+
+      /* =====================================================================
+       * 9. GEOCODING SEARCH & INTERACTIVE EVENT LISTENERS
+       * ===================================================================== */
+      var searchDebounceTimer = null;
+
+      function handleSearchInput() {
+        var q = el.searchInput.value.trim();
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+
+        if (q.length < 2) {
+          el.searchDropdown.classList.add("hidden");
+          el.searchDropdown.innerHTML = "";
+          return;
+        }
+
+        searchDebounceTimer = setTimeout(function () {
+          var geoUrl =
+            "https://geocoding-api.open-meteo.com/v1/search?name=" +
+            encodeURIComponent(q) +
+            "&count=5&language=en&format=json";
+
+          fetchWithTimeout(geoUrl, 5000)
+            .then(function (data) {
+              var results = data && Array.isArray(data.results) ? data.results : [];
+              if (results.length === 0) {
+                el.searchDropdown.innerHTML =
+                  "<div class=\"px-4 py-3 text-xs text-slate-400\">No matching places found.</div>";
+                el.searchDropdown.classList.remove("hidden");
+                return;
+              }
+
+              el.searchDropdown.innerHTML = "";
+              for (var i = 0; i < results.length; i++) {
+                (function (item) {
+                  var parts = [item.name];
+                  if (item.admin1) parts.push(item.admin1);
+                  if (item.country) parts.push(item.country);
+                  var label = parts.join(", ");
+
+                  var btn = document.createElement("button");
+                  btn.type = "button";
+                  btn.className =
+                    "w-full text-left px-4 py-3 text-xs sm:text-sm text-slate-100 hover:bg-white/10 border-b border-white/10 last:border-b-0 transition flex items-center justify-between gap-2";
+                  btn.innerHTML =
+                    "<span class=\"truncate font-medium\">" + label + "</span>" +
+                    "<span class=\"text-[11px] text-sky-300 shrink-0\">Select</span>";
+
+                  btn.addEventListener("click", function () {
+                    el.searchInput.value = item.name;
+                    el.searchDropdown.classList.add("hidden");
+                    loadForCoordinates({
+                      lat: item.latitude,
+                      lon: item.longitude,
+                      label: item.name + (item.country ? ", " + item.country : "")
+                    });
+                  });
+
+                  el.searchDropdown.appendChild(btn);
+                })(results[i]);
+              }
+              el.searchDropdown.classList.remove("hidden");
+            })
+            .catch(function () {
+              el.searchDropdown.classList.add("hidden");
+            });
+        }, 320);
+      }
+
+      el.unitToggleBtn.addEventListener("click", function () {
+        state.unit = state.unit === "C" ? "F" : "C";
+        if (state.unit === "C") {
+          el.unitC.className = "px-2.5 py-1 rounded-full bg-white text-slate-950 transition-all";
+          el.unitF.className = "px-2.5 py-1 rounded-full text-slate-300 transition-all";
+        } else {
+          el.unitC.className = "px-2.5 py-1 rounded-full text-slate-300 transition-all";
+          el.unitF.className = "px-2.5 py-1 rounded-full bg-white text-slate-950 transition-all";
+        }
+        renderAllData();
+      });
+
+      el.nextFactBtn.addEventListener("click", function () {
+        state.factIndex = (state.factIndex + 1) % 10;
+        renderFact();
+      });
+
+      el.relocateBtn.addEventListener("click", function () {
+        el.searchInput.value = "";
+        el.searchDropdown.classList.add("hidden");
+        locateAndLoad();
+      });
+
+      el.retryBtn.addEventListener("click", function () {
+        loadForCoordinates(state.userLoc);
+      });
+
+      el.dismissErrorBtn.addEventListener("click", function () {
+        hideBanner();
+      });
+
+      el.searchInput.addEventListener("input", handleSearchInput);
+
+      document.addEventListener("click", function (evt) {
+        if (!el.searchInput.contains(evt.target) && !el.searchDropdown.contains(evt.target)) {
+          el.searchDropdown.classList.add("hidden");
+        }
+      });
+
+      /* =====================================================================
+       * 10. INITIAL BOOTSTRAP
+       * ===================================================================== */
+      locateAndLoad();
+    });
+  </script>
+</body>
+</html>
